@@ -178,6 +178,48 @@ class WasteApiService {
       return false;
     }
   }
+
+  /**
+   * Save a draft waste site form to database
+   */
+  async saveDraft(enumeratorEmail: string, draftData: any): Promise<any> {
+    const response = await this.api.post<ApiResponse<any>>('/drafts', {
+      enumerator_email: enumeratorEmail,
+      draft_data: draftData,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to save draft');
+    }
+    return response.data.data;
+  }
+
+  /**
+   * Get draft waste site form from database
+   */
+  async getDraft(enumeratorEmail: string): Promise<any | null> {
+    try {
+      const response = await this.api.get<ApiResponse<any>>(`/drafts/${enumeratorEmail}`);
+      if (!response.data.success) {
+        return null; // No draft found
+      }
+      return response.data.data;
+    } catch (error) {
+      // Return null if no draft found (404)
+      return null;
+    }
+  }
+
+  /**
+   * Delete a draft waste site form from database
+   */
+  async deleteDraft(enumeratorEmail: string): Promise<boolean> {
+    try {
+      const response = await this.api.delete<ApiResponse<any>>(`/drafts/${enumeratorEmail}`);
+      return response.data.success;
+    } catch {
+      return false;
+    }
+  }
 }
 
 export const wasteApiService = new WasteApiService();

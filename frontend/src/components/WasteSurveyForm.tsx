@@ -151,6 +151,25 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
     })();
   }, [showError]);
 
+  // Load draft from database when component mounts
+  useEffect(() => {
+    (async () => {
+      if (!userEmail) return;
+      try {
+        const draft = await wasteApiService.getDraft(userEmail);
+        if (draft && draft.draft_data) {
+          // Load form data from database draft
+          const draftFormData = draft.draft_data;
+          setFormData(draftFormData);
+          showSuccess('Draft loaded from database! ✓');
+        }
+      } catch (e: any) {
+        console.error('Error loading draft:', e);
+        // Silently fail - user can continue without loading draft
+      }
+    })();
+  }, [userEmail, showSuccess]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
     if (type === 'checkbox') setFormData(p => ({ ...p, [name]: (e.target as HTMLInputElement).checked }));
@@ -174,6 +193,12 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
         enumerator_email: userEmail || undefined,
       });
       setSuccess(true);
+      
+      // Delete draft after successful submission
+      if (userEmail) {
+        await wasteApiService.deleteDraft(userEmail).catch(e => console.error('Error deleting draft:', e));
+      }
+      
       showSuccess('Waste site recorded successfully! ✓');
       setTimeout(() => { if (onSubmitSuccess) onSubmitSuccess(); }, 1800);
     } catch (e: any) {
@@ -190,6 +215,16 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
     try {
       if (!userEmail) throw new Error('User email not found');
       
+      // Save to database
+      const draftData = {
+        ...formData,
+        status: 'draft',
+        coordinatesPassed: !!formData.latitude && formData.latitude !== 0,
+      };
+
+      await wasteApiService.saveDraft(userEmail, draftData);
+      
+      // Also save to localStorage as backup
       const draftKey = `geowaste_drafts_${userEmail}`;
       const drafts = JSON.parse(localStorage.getItem(draftKey) || '[]');
       
@@ -211,7 +246,7 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
       }
       
       localStorage.setItem(draftKey, JSON.stringify(drafts));
-      showSuccess('Draft saved successfully! ✓');
+      showSuccess('Draft saved to database! ✓');
     } catch (e: any) {
       const errMsg = e.message || 'Failed to save draft';
       setError(errMsg);
