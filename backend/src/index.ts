@@ -14,26 +14,38 @@ const PORT = process.env.PORT || 5000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS configuration - flexible for development
+// CORS configuration
 const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3001';
+console.log(`🔐 CORS Origin configured for: ${corsOrigin}`);
+console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+
 const corsOptions = {
   origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      console.log('✅ No origin header (mobile/API request) - allowing');
+      return callback(null, true);
+    }
     
     // In development, allow any localhost origin
     if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
+      console.log(`✅ Development mode: allowing localhost request from ${origin}`);
       return callback(null, true);
     }
     
-    // In production, check against exact CORS_ORIGIN
+    // In production, check against configured CORS_ORIGIN
     if (origin === corsOrigin) {
+      console.log(`✅ Allowed: ${origin}`);
       return callback(null, true);
     }
     
+    // Log denied requests for debugging
+    console.warn(`❌ CORS blocked: ${origin} (allowed: ${corsOrigin})`);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
 app.use(cors(corsOptions));
