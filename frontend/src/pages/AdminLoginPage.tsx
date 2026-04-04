@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck, AlertCircle, Loader2, ArrowLeft, Eye, EyeOff, Lock, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useNotification } from '../context/NotificationContext';
 
 interface AdminLoginPageProps {
   onBackToLogin: () => void;
@@ -8,6 +9,7 @@ interface AdminLoginPageProps {
 
 export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onBackToLogin }) => {
   const { adminLogin, isLoading } = useAuth();
+  const { showSuccess, showError } = useNotification();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -19,14 +21,19 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onBackToLogin })
     setError(null);
 
     if (!username || !password) {
-      setError('Please enter both username and password.');
+      const msg = 'Please enter both username and password.';
+      setError(msg);
+      showError(msg);
       return;
     }
 
     try {
       await adminLogin(username, password);
+      showSuccess('Admin login successful! 🎉');
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+      const errMsg = err.message || 'Login failed. Please check your credentials.';
+      setError(errMsg);
+      showError(errMsg, 5000);
     }
   };
 

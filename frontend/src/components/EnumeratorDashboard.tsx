@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Home, MapPin, Edit3, Settings, LogOut, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useNotification } from '../context/NotificationContext';
 import { Dashboard } from './Dashboard';
 import { WasteSurveyForm } from './WasteSurveyForm';
 import { WasteMap } from './WasteMap';
@@ -14,6 +15,12 @@ export const EnumeratorDashboard: React.FC = () => {
   const [editingDraftData, setEditingDraftData] = useState<any>();
   const [showCollections, setShowCollections] = useState(false);
   const { user, logout, isAdmin } = useAuth();
+  const { showSuccess } = useNotification();
+
+  const handleLogout = () => {
+    logout();
+    showSuccess('Logged out successfully ✓');
+  };
 
   const handleEditDraft = (draftId: string, formData: Record<string, any>) => {
     setEditingDraftId(draftId);
@@ -63,7 +70,7 @@ export const EnumeratorDashboard: React.FC = () => {
               </div>
             </div>
             <button
-              onClick={logout}
+              onClick={handleLogout}
               className="hidden sm:flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-[12px] font-medium border border-[#CFF4D2] text-[#205072] hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition-all"
             >
               <LogOut size={13} /> <span className="hidden md:inline">Logout</span>

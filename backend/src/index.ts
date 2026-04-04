@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import wasteRoutes from './routes';
 import { ApiResponse } from './types';
+import { initializeDatabase } from './db';
 
 dotenv.config();
 
@@ -53,7 +54,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 });
 
 // API Routes
-app.use('/api/waste', wasteRoutes);
+app.use('/api', wasteRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
@@ -75,10 +76,25 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/api/health`);
-  console.log(`Waste API: http://localhost:${PORT}/api/waste`);
+app.listen(PORT, async () => {
+  console.log(`\n🚀 Backend server running on http://localhost:${PORT}\n`);
+  
+  try {
+    await initializeDatabase();
+    console.log('\n✓ Database initialized and ready\n');
+  } catch (err: any) {
+    console.error('\n✗ Database connection failed:', err.message);
+    console.error('The server is running but database operations will fail.');
+    console.error('Please ensure:');
+    console.error('  1. PostgreSQL is installed and running');
+    console.error('  2. Database credentials in .env are correct');
+    console.error('  3. Run: npm run db:init (to create tables)\n');
+  }
+
+  console.log('API Endpoints:');
+  console.log(`  Auth:  http://localhost:${PORT}/api/auth/signup (POST), /login (POST), /enumerators (GET)`);
+  console.log(`  Waste: http://localhost:${PORT}/api/waste (POST to create, GET to retrieve)`);
+  console.log(`  Health: http://localhost:${PORT}/api/health (GET)\n`);
 });
 
 export default app;

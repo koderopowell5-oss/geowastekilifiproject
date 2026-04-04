@@ -1,6 +1,7 @@
 import React from 'react';
 import { LogOut, User, Settings, Phone, Mail, MapPin, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useNotification } from '../context/NotificationContext';
 
 interface ProfileTabProps {
   onLogout?: () => void;
@@ -8,10 +9,12 @@ interface ProfileTabProps {
 
 export const ProfileTab: React.FC<ProfileTabProps> = ({ onLogout }) => {
   const { user, logout, isAdmin } = useAuth();
+  const { showSuccess } = useNotification();
 
   const handleLogout = () => {
-    onLogout?.();
+    showSuccess('You have been logged out');
     logout();
+    onLogout?.();
   };
 
   return (

@@ -3,6 +3,7 @@ import { WasteSiteRecord } from '../../../types';
 import { GeolocationService } from '../services/geolocation';
 import { wasteApiService } from '../services/wasteApi';
 import { ChevronLeft, ChevronRight, CheckCircle2, X, Loader2, AlertTriangle } from 'lucide-react';
+import { useNotification } from '../context/NotificationContext';
 
 interface WasteSurveyFormProps {
   onSubmitSuccess?: () => void;
@@ -107,6 +108,7 @@ const WeightSlider: React.FC<{
 export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
   onSubmitSuccess, onCancel, draftId, initialData, userEmail,
 }) => {
+  const { showError, showSuccess } = useNotification();
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -140,7 +142,9 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
         setFormData(p => ({ ...p, latitude: loc.latitude, longitude: loc.longitude }));
         setError(null);
       } catch (e: any) {
-        setError(`GPS unavailable: ${e.message}`);
+        const errMsg = `GPS unavailable: ${e.message}`;
+        setError(errMsg);
+        showError(errMsg);
       } finally {
         setLoading(false);
       }
@@ -165,11 +169,17 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
     setSubmitting(true); setError(null);
     try {
       if (!formData.latitude) throw new Error('GPS coordinates are required');
-      await wasteApiService.submitWasteSite(formData);
+      await wasteApiService.submitWasteSite({
+        ...formData,
+        enumerator_email: userEmail || undefined,
+      });
       setSuccess(true);
+      showSuccess('Waste site recorded successfully! ✓');
       setTimeout(() => { if (onSubmitSuccess) onSubmitSuccess(); }, 1800);
     } catch (e: any) {
-      setError(e.message || 'Submission failed');
+      const errMsg = e.message || 'Submission failed';
+      setError(errMsg);
+      showError(errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -201,9 +211,11 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
       }
       
       localStorage.setItem(draftKey, JSON.stringify(drafts));
-      alert('Draft saved successfully!');
+      showSuccess('Draft saved successfully! ✓');
     } catch (e: any) {
-      setError(e.message || 'Failed to save draft');
+      const errMsg = e.message || 'Failed to save draft';
+      setError(errMsg);
+      showError(errMsg);
     } finally {
       setSavingDraft(false);
     }

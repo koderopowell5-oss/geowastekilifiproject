@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AlertTriangle, LogOut, Menu, ChevronRight } from 'lucide-react';
 import { wasteApiService } from '../services/wasteApi';
 import { useAuth } from '../context/AuthContext';
+import { useNotification } from '../context/NotificationContext';
 import { Sidebar } from './Sidebar';
 
 interface DashboardProps {
@@ -22,9 +23,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const { showError, showSuccess } = useNotification();
   const [error, setError] = useState<string | null>(null);
   const { user, logout, isAdmin } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    showSuccess('Logged out successfully ✓');
+  };
 
   useEffect(() => {
     (async () => {
@@ -44,7 +51,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
         setStats(data);
         setError(null);
       } catch (err: any) {
-        setError(err.message || 'Failed to load statistics');
+        const errMsg = err.message || 'Failed to load statistics';
+        setError(errMsg);
+        showError(errMsg);
       } finally {
         setLoading(false);
       }
@@ -74,7 +83,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <span className="dash-user-name">{userName}</span>
                     <span className="dash-user-role">{userSub}</span>
                   </div>
-                  <button onClick={logout} className="dash-logout">
+                  <button onClick={handleLogout} className="dash-logout">
                     <LogOut size={14} /> Logout
                   </button>
                   <button onClick={() => setIsSidebarOpen(true)} className="dash-menu-btn">

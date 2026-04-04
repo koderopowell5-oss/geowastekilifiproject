@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { wasteApiService } from '../services/wasteApi';
+import { useNotification } from '../context/NotificationContext';
 import { WasteSiteRecord } from '../../../types';
 
 interface DraftForm {
@@ -21,6 +22,7 @@ interface CollectionsPageProps {
 export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, onStartNew }) => {
   const [drafts, setDrafts] = useState<DraftForm[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showError, showSuccess, showInfo } = useNotification();
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'draft' | 'submitted' | 'all'>('draft');
   const [submitting, setSubmitting] = useState<string | null>(null);
@@ -33,7 +35,9 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
         setLoading(true);
         const userEmail = (user as any)?.email;
         if (!userEmail) {
-          setError('User email not found');
+          const errMsg = 'User email not found';
+          setError(errMsg);
+          showError(errMsg);
           setLoading(false);
           return;
         }
@@ -43,11 +47,14 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
         if (stored) {
           const parsed = JSON.parse(stored);
           setDrafts(Array.isArray(parsed) ? parsed : []);
+          showInfo(`Loaded ${parsed.length} draft(s)`);
         }
         setError(null);
       } catch (err) {
         console.error('Error loading drafts:', err);
-        setError('Failed to load drafts');
+        const errMsg = 'Failed to load drafts';
+        setError(errMsg);
+        showError(errMsg);
       } finally {
         setLoading(false);
       }
@@ -64,8 +71,11 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
         const updated = drafts.filter((d) => d.id !== id);
         localStorage.setItem(key, JSON.stringify(updated));
         setDrafts(updated);
+        showSuccess('Draft deleted ✓');
       } catch (err) {
-        setError('Failed to delete draft');
+        const errMsg = 'Failed to delete draft';
+        setError(errMsg);
+        showError(errMsg);
       }
     }
   };
@@ -73,23 +83,26 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
   const handleSubmitDraft = async (draft: DraftForm) => {
     setSubmitting(draft.id);
     try {
-      // Submit the draft form via API
-      await wasteApiService.submitWasteSite(
-        draft.formData as Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'>
-      );
+      const userEmail = (user as any)?.email;
+      // Submit the draft form via API with enumerator_email
+      await wasteApiService.submitWasteSite({
+        ...(draft.formData as Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'>),
+        enumerator_email: userEmail || undefined,
+      });
 
       // Mark as submitted in localStorage
       const updated = drafts.map((d) =>
         d.id === draft.id ? { ...d, status: 'submitted' as const } : d
       );
-      const userEmail = (user as any)?.email;
       const key = `geowaste_drafts_${userEmail}`;
       localStorage.setItem(key, JSON.stringify(updated));
       setDrafts(updated);
 
-      alert('Form submitted successfully!');
+      showSuccess('Form submitted successfully! ✓');
     } catch (err: any) {
-      setError(err.message || 'Failed to submit form');
+      const errMsg = err.message || 'Failed to submit form';
+      setError(errMsg);
+      showError(errMsg);
     } finally {
       setSubmitting(null);
     }

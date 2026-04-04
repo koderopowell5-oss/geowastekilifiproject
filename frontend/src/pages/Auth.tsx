@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { LogIn, AlertCircle, Loader2, UserPlus, ShieldCheck, Eye, EyeOff, Mail, Lock, User, Phone, MapPin, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useNotification } from '../context/NotificationContext';
 
 // ─── Shared CSS ───────────────────────────────────────────────────────────────
 
@@ -269,6 +270,7 @@ interface AuthProps {
 
 export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
   const { login, signup, adminLogin, isLoading } = useAuth();
+  const { showSuccess, showError } = useNotification();
   const [currentPage, setCurrentPage] = useState<AuthPage>(initialPage);
 
   // Login state
@@ -304,13 +306,18 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
     e.preventDefault();
     setError(null);
     if (!email || !password) {
-      setError('Please enter both email and password.');
+      const msg = 'Please enter both email and password.';
+      setError(msg);
+      showError(msg);
       return;
     }
     try {
       await login(email, password);
+      showSuccess('Welcome back! 👋');
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please try again.');
+      const errMsg = err.message || 'Login failed. Please try again.';
+      setError(errMsg);
+      showError(errMsg, 5000);
     }
   };
 
@@ -338,13 +345,17 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
     const err = validateSignup();
     if (err) {
       setSignupError(err);
+      showError(err);
       return;
     }
     try {
       await signup(signupData.name, signupData.email, signupData.password, signupData.ward, signupData.phone);
       setSignupSuccess(true);
+      showSuccess('Account created successfully! 🎉');
     } catch (err: any) {
-      setSignupError(err.message || 'Registration failed. Please try again.');
+      const errMsg = err.message || 'Registration failed. Please try again.';
+      setSignupError(errMsg);
+      showError(errMsg, 5000);
     }
   };
 
@@ -353,13 +364,18 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
     e.preventDefault();
     setAdminError(null);
     if (!adminUsername || !adminPassword) {
-      setAdminError('Please enter both username and password.');
+      const msg = 'Please enter both username and password.';
+      setAdminError(msg);
+      showError(msg);
       return;
     }
     try {
       await adminLogin(adminUsername, adminPassword);
+      showSuccess('Admin login successful! 🎉');
     } catch (err: any) {
-      setAdminError(err.message || 'Authentication failed. Please check your credentials.');
+      const errMsg = err.message || 'Authentication failed. Please check your credentials.';
+      setAdminError(errMsg);
+      showError(errMsg, 5000);
     }
   };
 

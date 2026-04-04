@@ -29,10 +29,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const id = Date.now().toString();
     const newToast: Toast = { id, message, type, duration };
     
-    setToasts((prev) => [...prev, newToast]);
+    console.log(`Adding ${type} toast:`, message);
+    
+    setToasts((prev) => {
+      const updated = [...prev, newToast];
+      console.log('Toasts after update:', updated);
+      return updated;
+    });
 
     if (duration > 0) {
       setTimeout(() => {
+        console.log(`Removing toast ${id}`);
         removeToast(id);
       }, duration);
     }

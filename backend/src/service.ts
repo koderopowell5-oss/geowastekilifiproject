@@ -5,7 +5,7 @@ export class WasteService {
   /**
    * Create a new waste site record
    */
-  static async createWasteSite(data: Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'>): Promise<WasteSiteRecord> {
+  static async createWasteSite(data: Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'> & { enumerator_email?: string }): Promise<WasteSiteRecord> {
     const {
       latitude,
       longitude,
@@ -38,6 +38,7 @@ export class WasteService {
       preferred_management,
       challenges,
       suggested_location,
+      enumerator_email,
     } = data;
 
     const sql = `
@@ -51,7 +52,7 @@ export class WasteService {
         distance_weight, water_weight, road_weight, slope_weight, landuse_weight,
         terrain, flooding,
         policy_awareness, support_new_site, preferred_management,
-        challenges, suggested_location
+        challenges, suggested_location, enumerator_email
       )
       VALUES (
         $1, $2, $3, $4, $5,
@@ -63,7 +64,7 @@ export class WasteService {
         $20, $21, $22, $23, $24,
         $25, $26,
         $27, $28, $29,
-        $30, $31
+        $30, $31, $32
       )
       RETURNING id, latitude, longitude, ward, settlement_type, household_size,
                 waste_types, waste_quantity, waste_separation,
@@ -89,6 +90,7 @@ export class WasteService {
       terrain, flooding,
       policy_awareness, support_new_site, preferred_management,
       challenges, suggested_location,
+      enumerator_email || null,
     ];
 
     const result = await query(sql, values);
@@ -121,6 +123,41 @@ export class WasteService {
     const [countResult, dataResult] = await Promise.all([
       query(countSql),
       query(dataSql, [limit, offset]),
+    ]);
+
+    return {
+      records: dataResult.rows,
+      total: parseInt(countResult.rows[0].count, 10),
+    };
+  }
+
+  /**
+   * Get waste site records by enumerator email with pagination
+   */
+  static async getWasteSitesByEnumerator(enumeratorEmail: string, limit: number = 1000, offset: number = 0): Promise<{ records: WasteSiteRecord[]; total: number }> {
+    const countSql = 'SELECT COUNT(*) as count FROM waste_sites WHERE enumerator_email = $1;';
+    const dataSql = `
+      SELECT 
+        id, latitude, longitude, ward, settlement_type, household_size,
+        waste_types, waste_quantity, waste_separation,
+        disposal_method, distance_to_site, collection_frequency,
+        road_access, distance_to_road,
+        waste_near_home, distance_to_waste, impacts, nearby_features,
+        recommended_distance, preferred_location,
+        distance_weight, water_weight, road_weight, slope_weight, landuse_weight,
+        terrain, flooding,
+        policy_awareness, support_new_site, preferred_management,
+        challenges, suggested_location,
+        created_at, updated_at
+      FROM waste_sites
+      WHERE enumerator_email = $1
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3;
+    `;
+
+    const [countResult, dataResult] = await Promise.all([
+      query(countSql, [enumeratorEmail]),
+      query(dataSql, [enumeratorEmail, limit, offset]),
     ]);
 
     return {

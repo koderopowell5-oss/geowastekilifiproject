@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { LogIn, AlertCircle, Loader2, UserPlus, ShieldCheck, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useNotification } from '../context/NotificationContext';
 
 interface LoginPageProps {
   onNavigateToSignup: () => void;
@@ -9,6 +10,7 @@ interface LoginPageProps {
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup, onNavigateToAdminLogin }) => {
   const { login, isLoading } = useAuth();
+  const { showSuccess, showError } = useNotification();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -20,14 +22,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup, onNavi
     setError(null);
 
     if (!email || !password) {
-      setError('Please enter both email and password');
+      const msg = 'Please enter both email and password';
+      console.log('Validation error:', msg);
+      setError(msg);
+      showError(msg);
       return;
     }
 
     try {
+      console.log('Starting login...');
       await login(email, password);
+      console.log('Login succeeded!');
+      showSuccess(`Welcome back! 👋`);
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please try again.');
+      const errMsg = err.message || 'Login failed. Please try again.';
+      console.error('Login error in component:', errMsg);
+      console.log('Calling showError with message:', errMsg);
+      setError(errMsg);
+      showError(errMsg, 5000); // Show for 5 seconds
     }
   };
 

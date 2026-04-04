@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Home, LogOut, User, Settings, Phone, Mail, MapPin } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useNotification } from '../context/NotificationContext';
 
 interface SidebarProps {
   isAdmin: boolean;
@@ -10,8 +11,10 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isAdmin, isOpen = false, onClose }) => {
   const { user, logout } = useAuth();
+  const { showSuccess } = useNotification();
 
   const handleLogout = () => {
+    showSuccess('You have been logged out');
     logout();
     onClose?.();
   };

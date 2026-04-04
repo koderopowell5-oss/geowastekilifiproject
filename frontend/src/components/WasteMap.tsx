@@ -4,6 +4,7 @@ import { AlertCircle, MapPin, Loader2, X } from 'lucide-react';
 import L from 'leaflet';
 import { WasteSiteRecord } from '../../../types';
 import { wasteApiService } from '../services/wasteApi';
+import { useNotification } from '../context/NotificationContext';
 
 // Fix Leaflet marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -33,6 +34,7 @@ interface MapProps {
 export const WasteMap: React.FC<MapProps> = ({ onMarkerClick, onClose, hideHeader = false }) => {
   const [sites, setSites] = useState<WasteSiteRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showError } = useNotification();
   const [error, setError] = useState<string | null>(null);
   const [selectedSite, setSelectedSite] = useState<WasteSiteRecord | null>(null);
 
@@ -48,7 +50,9 @@ export const WasteMap: React.FC<MapProps> = ({ onMarkerClick, onClose, hideHeade
         setSites(records);
         setError(null);
       } catch (err: any) {
-        setError(err.message || 'Failed to load waste sites');
+        const errMsg = err.message || 'Failed to load waste sites';
+        setError(errMsg);
+        showError(errMsg);
       } finally {
         setLoading(false);
       }

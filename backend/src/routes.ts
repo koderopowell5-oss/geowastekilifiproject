@@ -122,7 +122,7 @@ router.get('/auth/enumerators', async (req: Request, res: Response) => {
  * POST /api/waste
  * Create a new waste site record
  */
-router.post('/', async (req: Request, res: Response) => {
+router.post('/waste', async (req: Request, res: Response) => {
   try {
     const data = req.body;
 
@@ -141,7 +141,13 @@ router.post('/', async (req: Request, res: Response) => {
       } as ApiResponse);
     }
 
-    const record = await WasteService.createWasteSite(data);
+    // Pass enumerator_email if provided
+    const recordData = {
+      ...data,
+      enumerator_email: data.enumerator_email || null,
+    };
+
+    const record = await WasteService.createWasteSite(recordData);
 
     return res.status(201).json({
       success: true,
@@ -160,14 +166,29 @@ router.post('/', async (req: Request, res: Response) => {
 
 /**
  * GET /api/waste
- * Retrieve all waste site records with pagination
+ * Retrieve waste site records with pagination
+ * Optional: filter by enumerator_email
  */
-router.get('/', async (req: Request, res: Response) => {
+router.get('/waste', async (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 1000;
     const offset = parseInt(req.query.offset as string) || 0;
+    const enumeratorEmail = req.query.enumerator_email as string | undefined;
 
-    const { records, total } = await WasteService.getAllWasteSites(limit, offset);
+    let records: any[];
+    let total: number;
+
+    if (enumeratorEmail) {
+      // Filter by enumerator email
+      const result = await WasteService.getWasteSitesByEnumerator(enumeratorEmail, limit, offset);
+      records = result.records;
+      total = result.total;
+    } else {
+      // Get all waste sites
+      const result = await WasteService.getAllWasteSites(limit, offset);
+      records = result.records;
+      total = result.total;
+    }
 
     return res.status(200).json({
       success: true,
@@ -196,7 +217,7 @@ router.get('/', async (req: Request, res: Response) => {
  * GET /api/waste/:id
  * Retrieve a single waste site record by ID
  */
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/waste/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -236,7 +257,7 @@ router.get('/:id', async (req: Request, res: Response) => {
  * GET /api/waste/stats/summary
  * Get statistics summary
  */
-router.get('/stats/summary', async (req: Request, res: Response) => {
+router.get('/waste/stats/summary', async (req: Request, res: Response) => {
   try {
     const stats = await WasteService.getStatistics();
 

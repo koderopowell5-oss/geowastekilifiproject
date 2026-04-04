@@ -13,12 +13,48 @@ class WasteApiService {
         'Content-Type': 'application/json',
       },
     });
+
+    // Add response interceptor to handle errors
+    this.api.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        console.error('API Error:', error);
+        
+        if (error.response) {
+          // Server responded with error status code
+          const errorMsg = error.response.data?.message || error.response.statusText || 'Request failed';
+          const errorCode = error.response.status;
+          
+          console.error(`HTTP ${errorCode}: ${errorMsg}`);
+          
+          if (errorCode === 401) {
+            throw new Error('Invalid email or password. Please check your credentials.');
+          } else if (errorCode === 400) {
+            throw new Error(errorMsg);
+          } else if (errorCode === 409) {
+            throw new Error('Email already registered. Please login instead.');
+          } else if (errorCode >= 500) {
+            throw new Error('Server error. Please try again later.');
+          } else {
+            throw new Error(errorMsg);
+          }
+        } else if (error.request) {
+          // Request made but no response
+          console.error('No server response:', error.request);
+          throw new Error('No response from server. Please check your connection.');
+        } else {
+          // Error in request setup
+          console.error('Request setup error:', error.message);
+          throw new Error(error.message || 'An error occurred');
+        }
+      }
+    );
   }
 
   /**
    * Submit a new waste site record
    */
-  async submitWasteSite(data: Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'>): Promise<WasteSiteRecord> {
+  async submitWasteSite(data: Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'> & { enumerator_email?: string }): Promise<WasteSiteRecord> {
     const response = await this.api.post<ApiResponse<WasteSiteRecord>>('/waste', data);
     if (!response.data.success) {
       throw new Error(response.data.message || 'Failed to submit waste site');

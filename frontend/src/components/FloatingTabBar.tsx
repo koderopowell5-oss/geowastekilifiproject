@@ -18,24 +18,48 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
   currentTab,
   onTabChange,
 }) => {
-  const activeIndexRef = useRef<number>(tabs.findIndex((t) => t.id === currentTab));
-  const [pillStyle, setPillStyle] = useState<React.CSSProperties>({});
-  const containerRef = useRef<HTMLDivElement>(null);
-  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [mobilePillStyle, setMobilePillStyle] = useState<React.CSSProperties>({});
+  const [desktopPillStyle, setDesktopPillStyle] = useState<React.CSSProperties>({});
+  
+  // Separate refs for mobile and desktop
+  const containerRefMobile = useRef<HTMLDivElement>(null);
+  const containerRefDesktop = useRef<HTMLDivElement>(null);
+  const buttonRefsMobile = useRef<(HTMLButtonElement | null)[]>([]);
+  const buttonRefsDesktop = useRef<(HTMLButtonElement | null)[]>([]);
 
+  // Mobile pill positioning
   useEffect(() => {
     const idx = tabs.findIndex((t) => t.id === currentTab);
-    activeIndexRef.current = idx;
-    const btn = buttonRefs.current[idx];
-    const container = containerRef.current;
+    const btn = buttonRefsMobile.current[idx];
+    const container = containerRefMobile.current;
     if (!btn || !container) return;
 
     const btnRect = btn.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
 
-    setPillStyle({
+    setMobilePillStyle({
+      top: btnRect.top - containerRect.top,
+      height: btnRect.height,
+      width: 'calc(100% - 12px)',
+      left: '6px',
+    });
+  }, [currentTab, tabs]);
+
+  // Desktop pill positioning
+  useEffect(() => {
+    const idx = tabs.findIndex((t) => t.id === currentTab);
+    const btn = buttonRefsDesktop.current[idx];
+    const container = containerRefDesktop.current;
+    if (!btn || !container) return;
+
+    const btnRect = btn.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    setDesktopPillStyle({
       left: btnRect.left - containerRect.left,
       width: btnRect.width,
+      top: '5px',
+      height: 'calc(100% - 10px)',
     });
   }, [currentTab, tabs]);
 
@@ -53,12 +77,12 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
         className="sm:hidden"
       >
         <div
-          ref={containerRef}
+          ref={containerRefMobile}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '4px',
-            background: 'rgba(255,255,255,0.85)',
+            background: 'rgba(255,255,255,0.92)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
             borderRadius: '9999px',
@@ -73,14 +97,13 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
           <div
             style={{
               position: 'absolute',
-              top: '6px',
-              height: 'calc(100% - 12px)',
               background: 'linear-gradient(135deg, #329D9C 0%, #2b8a89 100%)',
               borderRadius: '9999px',
               boxShadow: '0 4px 12px rgba(50,157,156,0.45), 0 1px 3px rgba(0,0,0,0.1)',
-              transition: 'left 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              transition: 'left 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
               pointerEvents: 'none',
-              ...pillStyle,
+              zIndex: 0,
+              ...mobilePillStyle,
             }}
           />
 
@@ -89,7 +112,7 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
             return (
               <button
                 key={tab.id}
-                ref={(el) => (buttonRefs.current[i] = el)}
+                ref={(el) => (buttonRefsMobile.current[i] = el)}
                 onClick={() => onTabChange(tab.id)}
                 style={{
                   position: 'relative',
@@ -120,6 +143,8 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
                     height: '20px',
                     transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
                     transform: isActive ? 'scale(1.15)' : 'scale(1)',
+                    color: 'inherit',
+                    fill: 'currentColor',
                   }}
                 >
                   {tab.icon}
@@ -153,7 +178,7 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
         className="hidden sm:block"
       >
         <div
-          ref={containerRef}
+          ref={containerRefDesktop}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -179,9 +204,9 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
               borderRadius: '9999px',
               boxShadow: '0 4px 14px rgba(50,157,156,0.5), 0 1px 4px rgba(0,0,0,0.12)',
               transition:
-                'left 0.38s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.38s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                'left 0.38s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.38s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.38s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.38s cubic-bezier(0.34, 1.56, 0.64, 1)',
               pointerEvents: 'none',
-              ...pillStyle,
+              ...desktopPillStyle,
             }}
           />
 
@@ -190,7 +215,7 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
             return (
               <button
                 key={tab.id}
-                ref={(el) => (buttonRefs.current[i] = el)}
+                ref={(el) => (buttonRefsDesktop.current[i] = el)}
                 onClick={() => onTabChange(tab.id)}
                 style={{
                   position: 'relative',
@@ -217,6 +242,8 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
                     height: '20px',
                     transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
                     transform: isActive ? 'scale(1.2)' : 'scale(1)',
+                    color: 'inherit',
+                    fill: 'currentColor',
                   }}
                 >
                   {tab.icon}
