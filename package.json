@@ -1,0 +1,27 @@
+{
+  "name": "geowaste-kilifi",
+  "version": "1.0.0",
+  "description": "GeoWaste Kilifi - MVP for geospatial data collection system for waste disposal suitability analysis",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm start",
+    "build:all": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "db:init": "cd database && psql -U postgres -d geowaste_kilifi -f schema.sql"
+  },
+  "keywords": [
+    "geospatial",
+    "waste",
+    "kilifi",
+    "data-collection"
+  ],
+  "author": "GeoWaste Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
