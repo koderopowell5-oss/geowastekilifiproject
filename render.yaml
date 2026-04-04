@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: geowaste-api
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: cd backend && npm install && npm run build
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: DB_HOST
+        value: dpg-d78fh09r0fns738k6m40-a.frankfurt-postgres.render.com
+      - key: DB_PORT
+        value: 5432
+      - key: DB_NAME
+        value: geowaste_kilifi
+      - key: DB_USER
+        value: geowaste
+      - key: DB_PASSWORD
+        sync: false
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: API_BASE_URL
+        value: https://geowaste-api.onrender.com
+      - key: API_VERSION
+        value: v1
