@@ -170,11 +170,11 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onBackToLogin })
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-gray-400">Username</span>
-                  <code className="text-[11px] font-mono font-bold text-[#329D9C] bg-[#329D9C]/10 px-2 py-0.5 rounded-lg">admin</code>
+                  <code className="text-[11px] font-mono font-bold text-[#329D9C] bg-[#329D9C]/10 px-2 py-0.5 rounded-lg">kodero_admin</code>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-gray-400">Password</span>
-                  <code className="text-[10px] font-mono font-bold text-[#329D9C] bg-[#329D9C]/10 px-2 py-0.5 rounded-lg">AdminGeoWaste2024!</code>
+                  <code className="text-[10px] font-mono font-bold text-[#329D9C] bg-[#329D9C]/10 px-2 py-0.5 rounded-lg">*Powell123!</code>
                 </div>
               </div>
             </div>

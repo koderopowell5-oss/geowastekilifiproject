@@ -100,12 +100,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const adminLogin = async (_username: string, _password: string): Promise<void> => {
+  const adminLogin = async (username: string, password: string): Promise<void> => {
     setIsLoading(true);
     try {
-      // TODO: Implement admin authentication with backend
-      // For now, reject all admin login attempts
-      throw new Error('Admin login not yet configured. Please contact the administrator.');
+      // Hardcoded admin credentials
+      const ADMIN_USERNAME = 'kodero_admin';
+      const ADMIN_PASSWORD = '*Powell123!';
+
+      if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+        throw new Error('Invalid admin username or password');
+      }
+
+      const adminUser: Admin = {
+        username: ADMIN_USERNAME,
+        isAdmin: true,
+      };
+
+      setUser(adminUser);
+      localStorage.setItem('auth_user', JSON.stringify(adminUser));
     } finally {
       setIsLoading(false);
     }
