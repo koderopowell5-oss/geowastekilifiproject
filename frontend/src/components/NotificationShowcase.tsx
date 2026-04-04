@@ -190,10 +190,10 @@ export const NotificationShowcase: React.FC = () => {
               </div>
               
               <div className="ml-4">
-                )
+                {')'}
               </div>
               
-              <div>{'}'})</div>
+              <div>{'}'}</div>
             </div>
           </div>
         </div>
@@ -203,6 +203,5 @@ export const NotificationShowcase: React.FC = () => {
           <p>See NOTIFICATIONS_GUIDE.md for complete documentation</p>
         </div>
       </div>
-    </div>
   );
 };
