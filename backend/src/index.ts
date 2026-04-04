@@ -2,7 +2,7 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import wasteRoutes from './routes';
-import { ApiResponse } from '../../types';
+import { ApiResponse } from './types';
 
 dotenv.config();
 

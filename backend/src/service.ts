@@ -1,5 +1,5 @@
 import { query } from './db';
-import { WasteSiteRecord, ApiResponse } from '../../types';
+import { WasteSiteRecord, ApiResponse } from './types';
 
 export class WasteService {
   /**

@@ -30,46 +30,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Demo enumerators (kept for testing)
-const DEMO_ENUMERATORS: Record<string, { password: string; enumerator: Enumerator }> = {
-  'enumerator1@geowaste.com': {
-    password: 'password123',
-    enumerator: {
-      id: '1',
-      name: 'John Kamau',
-      email: 'enumerator1@geowaste.com',
-      ward: 'Mombasa',
-      phone: '+254712345678',
-    },
-  },
-  'enumerator2@geowaste.com': {
-    password: 'password123',
-    enumerator: {
-      id: '2',
-      name: 'Mary Kipchoge',
-      email: 'enumerator2@geowaste.com',
-      ward: 'Kilifi',
-      phone: '+254723456789',
-    },
-  },
-  'enumerator3@geowaste.com': {
-    password: 'password123',
-    enumerator: {
-      id: '3',
-      name: 'David Omondi',
-      email: 'enumerator3@geowaste.com',
-      ward: 'Malindi',
-      phone: '+254734567890',
-    },
-  },
-};
 
-// Hardcoded admin credentials
-const ADMIN_CREDENTIALS = {
-  username: 'admin',
-  password: 'AdminGeoWaste2024!',
-  id: 'admin-001'
-};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -92,31 +53,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
     try {
-      // Check demo enumerators first
-      let userCreds = DEMO_ENUMERATORS[email];
+      // Call backend API for login
+      const response = await wasteApiService.loginEnumerator(email, password);
       
-      // If not found in demo, check registered users in localStorage
-      if (!userCreds) {
-        const registeredUsers = JSON.parse(localStorage.getItem('registered_users') || '{}');
-        const registeredUser = registeredUsers[email];
-        if (registeredUser && registeredUser.password === password) {
-          // Simulate network delay
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          setUser(registeredUser.enumerator);
-          localStorage.setItem('auth_user', JSON.stringify(registeredUser.enumerator));
-          return;
-        }
-      }
+      const enumerator: Enumerator = {
+        id: response.id,
+        name: response.name,
+        email: response.email,
+        ward: response.ward,
+        phone: response.phone,
+      };
 
-      if (!userCreds || userCreds.password !== password) {
-        throw new Error('Invalid email or password');
-      }
-
-      // Simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      setUser(userCreds.enumerator);
-      localStorage.setItem('auth_user', JSON.stringify(userCreds.enumerator));
+      setUser(enumerator);
+      localStorage.setItem('auth_user', JSON.stringify(enumerator));
+    } catch (error: any) {
+      throw new Error(error.message || 'Login failed');
     } finally {
       setIsLoading(false);
     }
@@ -128,21 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Call backend API to register user
       const enumerator = await wasteApiService.signupEnumerator(email, password, name, ward, phone);
 
-      // Store in localStorage as backup
-      const registeredUsers = JSON.parse(localStorage.getItem('registered_users') || '{}');
-      registeredUsers[email] = {
-        password,
-        enumerator: {
-          id: enumerator.id,
-          name: enumerator.name,
-          email: enumerator.email,
-          ward: enumerator.ward,
-          phone: enumerator.phone,
-        } as Enumerator,
-      };
-      localStorage.setItem('registered_users', JSON.stringify(registeredUsers));
-
-      // Set current user
+      // Set current user (don't store password)
       const user: Enumerator = {
         id: enumerator.id,
         name: enumerator.name,
@@ -150,31 +87,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ward: enumerator.ward,
         phone: enumerator.phone,
       };
-      localStorage.setItem('auth_user', JSON.stringify(user));
+      
       setUser(user);
+      localStorage.setItem('auth_user', JSON.stringify(user));
+    } catch (error: any) {
+      throw new Error(error.message || 'Registration failed');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const adminLogin = async (username: string, password: string): Promise<void> => {
+  const adminLogin = async (_username: string, _password: string): Promise<void> => {
     setIsLoading(true);
     try {
-      // Simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      if (username !== ADMIN_CREDENTIALS.username || password !== ADMIN_CREDENTIALS.password) {
-        throw new Error('Invalid admin credentials');
-      }
-
-      const adminUser: Admin = {
-        id: ADMIN_CREDENTIALS.id,
-        username: ADMIN_CREDENTIALS.username,
-        isAdmin: true,
-      };
-
-      setUser(adminUser);
-      localStorage.setItem('auth_user', JSON.stringify(adminUser));
+      // TODO: Implement admin authentication with backend
+      // For now, reject all admin login attempts
+      throw new Error('Admin login not yet configured. Please contact the administrator.');
     } finally {
       setIsLoading(false);
     }
@@ -205,9 +133,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within AuthProvider');
   }
   return context;

@@ -1,4 +1,5 @@
 import pool from './db';
+import bcrypt from 'bcrypt';
 
 export interface EnumeratorData {
   email: string;
@@ -21,6 +22,17 @@ export interface Enumerator {
 }
 
 export class AuthService {
+  // Hash password with bcrypt
+  private static async hashPassword(password: string): Promise<string> {
+    const saltRounds = 10;
+    return bcrypt.hash(password, saltRounds);
+  }
+
+  // Compare password with hash
+  private static async comparePassword(password: string, hash: string): Promise<boolean> {
+    return bcrypt.compare(password, hash);
+  }
+
   /**
    * Register a new enumerator
    */
@@ -37,12 +49,15 @@ export class AuthService {
       throw new Error('Email already registered');
     }
 
+    // Hash the password
+    const hashedPassword = await this.hashPassword(password);
+
     // Insert new enumerator
     const result = await pool.query(
       `INSERT INTO enumerators (email, password, name, ward, phone, role, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, email, name, ward, phone, role, status, created_at, updated_at`,
-      [email, password, name, ward, phone, 'enumerator', 'active']
+      [email, hashedPassword, name, ward, phone, 'enumerator', 'active']
     );
 
     return result.rows[0] as Enumerator;
@@ -53,15 +68,24 @@ export class AuthService {
    */
   static async authenticateEnumerator(email: string, password: string): Promise<Enumerator> {
     const result = await pool.query(
-      'SELECT id, email, name, ward, phone, role, status, created_at, updated_at FROM enumerators WHERE email = $1 AND password = $2',
-      [email, password]
+      'SELECT id, email, password, name, ward, phone, role, status, created_at, updated_at FROM enumerators WHERE email = $1',
+      [email]
     );
 
     if (result.rows.length === 0) {
       throw new Error('Invalid email or password');
     }
 
-    return result.rows[0] as Enumerator;
+    const user = result.rows[0];
+    const passwordMatch = await this.comparePassword(password, user.password);
+
+    if (!passwordMatch) {
+      throw new Error('Invalid email or password');
+    }
+
+    // Return user without password
+    const { password: _, ...userWithoutPassword } = user;
+    return userWithoutPassword as Enumerator;
   }
 
   /**

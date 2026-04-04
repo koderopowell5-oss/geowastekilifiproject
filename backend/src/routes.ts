@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { WasteService } from './service';
 import { AuthService } from './authService';
-import { ApiResponse, WasteSiteRecord } from '../../types';
+import { ApiResponse, WasteSiteRecord } from './types';
 
 const router = Router();
 
