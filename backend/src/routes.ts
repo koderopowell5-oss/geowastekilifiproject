@@ -313,4 +313,116 @@ router.get('/bounds/:minLat/:maxLat/:minLng/:maxLng', async (req: Request, res: 
   }
 });
 
+/**
+ * POST /api/drafts
+ * Save a draft waste site form
+ */
+router.post('/drafts', async (req: Request, res: Response) => {
+  try {
+    const { enumerator_email, draft_data } = req.body;
+
+    if (!enumerator_email || !draft_data) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields',
+        error: 'enumerator_email and draft_data are required',
+      } as ApiResponse);
+    }
+
+    const draft = await WasteService.saveDraft(enumerator_email, draft_data);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Draft saved successfully',
+      data: draft,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error saving draft:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/drafts/:enumerator_email
+ * Get draft for an enumerator
+ */
+router.get('/drafts/:enumerator_email', async (req: Request, res: Response) => {
+  try {
+    const { enumerator_email } = req.params;
+
+    if (!enumerator_email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field',
+        error: 'enumerator_email is required',
+      } as ApiResponse);
+    }
+
+    const draft = await WasteService.getDraft(enumerator_email);
+
+    if (!draft) {
+      return res.status(404).json({
+        success: false,
+        message: 'No draft found for this enumerator',
+      } as ApiResponse);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Draft retrieved successfully',
+      data: draft,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error retrieving draft:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * DELETE /api/drafts/:enumerator_email
+ * Delete a draft waste site form
+ */
+router.delete('/drafts/:enumerator_email', async (req: Request, res: Response) => {
+  try {
+    const { enumerator_email } = req.params;
+
+    if (!enumerator_email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field',
+        error: 'enumerator_email is required',
+      } as ApiResponse);
+    }
+
+    const deleted = await WasteService.deleteDraft(enumerator_email);
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'No draft found for this enumerator',
+      } as ApiResponse);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Draft deleted successfully',
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error deleting draft:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
 export default router;

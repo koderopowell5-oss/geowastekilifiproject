@@ -75,7 +75,7 @@ export class WasteService {
                 distance_weight, water_weight, road_weight, slope_weight, landuse_weight,
                 terrain, flooding,
                 policy_awareness, support_new_site, preferred_management,
-                challenges, suggested_location,
+                challenges, suggested_location, enumerator_email,
                 created_at, updated_at;
     `;
 
@@ -113,7 +113,7 @@ export class WasteService {
         distance_weight, water_weight, road_weight, slope_weight, landuse_weight,
         terrain, flooding,
         policy_awareness, support_new_site, preferred_management,
-        challenges, suggested_location,
+        challenges, suggested_location, enumerator_email,
         created_at, updated_at
       FROM waste_sites
       ORDER BY created_at DESC
@@ -147,7 +147,7 @@ export class WasteService {
         distance_weight, water_weight, road_weight, slope_weight, landuse_weight,
         terrain, flooding,
         policy_awareness, support_new_site, preferred_management,
-        challenges, suggested_location,
+        challenges, suggested_location, enumerator_email,
         created_at, updated_at
       FROM waste_sites
       WHERE enumerator_email = $1
@@ -181,7 +181,7 @@ export class WasteService {
         distance_weight, water_weight, road_weight, slope_weight, landuse_weight,
         terrain, flooding,
         policy_awareness, support_new_site, preferred_management,
-        challenges, suggested_location,
+        challenges, suggested_location, enumerator_email,
         created_at, updated_at
       FROM waste_sites
       WHERE id = $1;
@@ -214,7 +214,7 @@ export class WasteService {
     const sql = `
       SELECT 
         id, latitude, longitude, ward, settlement_type,
-        waste_types, disposal_method, impacts, created_at
+        waste_types, disposal_method, impacts, enumerator_email, created_at
       FROM waste_sites
       WHERE latitude BETWEEN $1 AND $2
         AND longitude BETWEEN $3 AND $4
@@ -223,5 +223,56 @@ export class WasteService {
 
     const result = await query(sql, [minLat, maxLat, minLng, maxLng]);
     return result.rows;
+  }
+
+  /**
+   * Save a draft waste site form
+   */
+  static async saveDraft(enumeratorEmail: string, draftData: any): Promise<any> {
+    const sql = `
+      INSERT INTO waste_site_drafts (enumerator_email, draft_data)
+      VALUES ($1, $2)
+      ON CONFLICT (enumerator_email) DO UPDATE
+      SET draft_data = EXCLUDED.draft_data, updated_at = CURRENT_TIMESTAMP
+      RETURNING id, enumerator_email, draft_data, created_at, updated_at;
+    `;
+
+    const result = await query(sql, [enumeratorEmail, JSON.stringify(draftData)]);
+    return result.rows[0];
+  }
+
+  /**
+   * Get draft for an enumerator
+   */
+  static async getDraft(enumeratorEmail: string): Promise<any | null> {
+    const sql = `
+      SELECT id, enumerator_email, draft_data, created_at, updated_at
+      FROM waste_site_drafts
+      WHERE enumerator_email = $1;
+    `;
+
+    const result = await query(sql, [enumeratorEmail]);
+    if (result.rows[0]) {
+      return {
+        ...result.rows[0],
+        draft_data: typeof result.rows[0].draft_data === 'string' 
+          ? JSON.parse(result.rows[0].draft_data) 
+          : result.rows[0].draft_data,
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Delete a draft waste site form
+   */
+  static async deleteDraft(enumeratorEmail: string): Promise<boolean> {
+    const sql = `
+      DELETE FROM waste_site_drafts
+      WHERE enumerator_email = $1;
+    `;
+
+    const result = await query(sql, [enumeratorEmail]);
+    return result.rowCount > 0;
   }
 }
