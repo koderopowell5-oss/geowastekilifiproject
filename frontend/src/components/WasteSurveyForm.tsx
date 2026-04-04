@@ -149,7 +149,7 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
         setLoading(false);
       }
     })();
-  }, []);
+  }, [showError]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;

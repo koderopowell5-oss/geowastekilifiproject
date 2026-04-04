@@ -58,7 +58,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         setLoading(false);
       }
     })();
-  }, [isAdmin, user]);
+  }, [isAdmin, user, showError]);
 
   const userName = isAdmin ? (user as any)?.username : (user as any)?.name;
   const userSub  = isAdmin ? 'Administrator' : (user as any)?.ward;

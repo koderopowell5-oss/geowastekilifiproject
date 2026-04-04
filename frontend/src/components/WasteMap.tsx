@@ -58,7 +58,7 @@ export const WasteMap: React.FC<MapProps> = ({ onMarkerClick, onClose, hideHeade
       }
     };
     fetchSites();
-  }, []);
+  }, [showError]);
 
   const formatTypes = (val: string | string[] | undefined): string => {
     if (!val) return '—';
