@@ -76,9 +76,9 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`✅ Backend server running on http://localhost:${PORT}`);
-  console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`🗑️ Waste API: http://localhost:${PORT}/api/waste`);
+  console.log(`Backend server running on http://localhost:${PORT}`);
+  console.log(`Health check: http://localhost:${PORT}/api/health`);
+  console.log(`Waste API: http://localhost:${PORT}/api/waste`);
 });
 
 export default app;

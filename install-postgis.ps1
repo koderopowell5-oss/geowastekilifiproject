@@ -30,9 +30,9 @@ Write-Host "`n[3] Verifying PostGIS..." -ForegroundColor Cyan
 try {
     $result = & $psqlExe -U postgres -h localhost -d geowaste_kilifi -t -c "SELECT PostGIS_version();" 2>&1
     if ($result -match "PostGIS") {
-        Write-Host "✅ PostGIS installed: $result" -ForegroundColor Green
+        Write-Host " PostGIS installed: $result" -ForegroundColor Green
     } else {
-        Write-Host "⚠️  PostGIS creation command ran but verify shows: $result" -ForegroundColor Yellow
+        Write-Host "PostGIS creation command ran but verify shows: $result" -ForegroundColor Yellow
     }
 } catch {
     Write-Host "Error: $_" -ForegroundColor Yellow

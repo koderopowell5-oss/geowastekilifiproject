@@ -22,7 +22,7 @@ http://localhost:5000/api
 curl http://localhost:5000/api/health
 ```
 
-**Expected:** ✅ 200 OK
+**Expected:**200 OK
 
 ### 2. Create Waste Site (POST /waste)
 
@@ -64,7 +64,7 @@ curl -X POST http://localhost:5000/api/waste \
   }'
 ```
 
-**Expected:** ✅ 201 Created
+**Expected:**  201 Created
 
 ### 3. Get All Records (GET /waste)
 
@@ -72,7 +72,7 @@ curl -X POST http://localhost:5000/api/waste \
 curl "http://localhost:5000/api/waste?limit=10&offset=0"
 ```
 
-**Expected:** ✅ 200 OK
+**Expected:**  200 OK
 
 ### 4. Get Single Record (GET /waste/:id)
 
@@ -80,7 +80,7 @@ curl "http://localhost:5000/api/waste?limit=10&offset=0"
 curl http://localhost:5000/api/waste/1
 ```
 
-**Expected:** ✅ 200 OK (if record exists) or 404 (if not found)
+**Expected:**  200 OK (if record exists) or 404 (if not found)
 
 ### 5. Get Statistics (GET /waste/stats/summary)
 
@@ -88,7 +88,7 @@ curl http://localhost:5000/api/waste/1
 curl http://localhost:5000/api/waste/stats/summary
 ```
 
-**Expected:** ✅ 200 OK
+**Expected:**  200 OK
 
 ### 6. Get Records by Geographic Bounds
 
@@ -96,7 +96,7 @@ curl http://localhost:5000/api/waste/stats/summary
 curl "http://localhost:5000/api/waste/bounds/-3.3/-3.2/39.5/39.7"
 ```
 
-**Expected:** ✅ 200 OK
+**Expected:**  200 OK
 
 ## Postman Collection
 
@@ -163,7 +163,7 @@ async function runTests() {
   try {
     // Test health
     const health = await axios.get(`${API_URL}/health`);
-    console.log('✅ Health:', health.data);
+    console.log(' Health:', health.data);
 
     // Test create
     const created = await axios.post(`${API_URL}/waste`, {
@@ -177,21 +177,21 @@ async function runTests() {
       waste_separation: true,
       // ... other fields
     });
-    console.log('✅ Created:', created.data.data.id);
+    console.log(' Created:', created.data.data.id);
 
     // Test get all
     const all = await axios.get(`${API_URL}/waste`);
-    console.log('✅ Total records:', all.data.data.pagination.total);
+    console.log(' Total records:', all.data.data.pagination.total);
 
     // Test get one
     const one = await axios.get(`${API_URL}/waste/1`);
-    console.log('✅ Record 1:', one.data.data.ward);
+    console.log(' Record 1:', one.data.data.ward);
 
     // Test stats
     const stats = await axios.get(`${API_URL}/waste/stats/summary`);
-    console.log('✅ Statistics:', stats.data.data);
+    console.log(' Statistics:', stats.data.data);
   } catch (error) {
-    console.error('❌ Test failed:', error.response?.data || error.message);
+    console.error('Test failed:', error.response?.data || error.message);
   }
 }
 
@@ -231,7 +231,7 @@ curl -s -X POST $API/waste \
 echo "4. Get All Records..."
 curl -s "$API/waste?limit=5" | jq .
 
-echo "✅ All tests completed"
+echo " All tests completed"
 ```
 
 Run with:
@@ -250,7 +250,7 @@ curl -X POST http://localhost:5000/api/waste \
   -d '{"lat": -3.2869}'
 ```
 
-Expected: ❌ 400 Bad Request
+Expected: 400 Bad Request
 
 ```json
 {
@@ -266,7 +266,7 @@ Expected: ❌ 400 Bad Request
 curl http://localhost:5000/api/waste/invalid
 ```
 
-Expected: ❌ 400 Bad Request
+Expected: 400 Bad Request
 
 ### Not Found
 
@@ -274,7 +274,7 @@ Expected: ❌ 400 Bad Request
 curl http://localhost:5000/api/waste/99999
 ```
 
-Expected: ❌ 404 Not Found
+Expected: 404 Not Found
 
 ## Performance Testing
 

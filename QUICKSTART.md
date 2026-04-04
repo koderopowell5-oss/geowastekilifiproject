@@ -73,11 +73,11 @@ npm run dev
 
 ## First Steps
 
-1. ✅ Dashboard loads
+1.  Dashboard loads
 2. 📍 Click "Start New Survey"
 3. 📍 Allow GPS access
 4. 📝 Fill form sections
-5. ✅ Submit survey
+5.  Submit survey
 6. 🗺️ View on map
 
 ## Troubleshooting

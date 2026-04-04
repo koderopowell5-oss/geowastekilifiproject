@@ -215,7 +215,7 @@ import { FailCard } from '../components/FailCard';
 
 ---
 
-## ✅ Setup Verification Checklist
+##  Setup Verification Checklist
 
 - [x] NotificationContext.tsx created
 - [x] Toast.tsx component created
@@ -294,12 +294,12 @@ import { FailCard } from '../components/FailCard';
 
 ## 🚀 Next Steps
 
-1. ✅ Read **README_NOTIFICATIONS.md** (2 min)
-2. ✅ Check **IntegrationExamples.tsx** (5 min)
-3. ✅ Find your use case (2 min)
-4. ✅ Copy-paste code into your component (5 min)
-5. ✅ Test in browser (2 min)
-6. ✅ Celebrate your new notification system! 🎉
+1.  Read **README_NOTIFICATIONS.md** (2 min)
+2.  Check **IntegrationExamples.tsx** (5 min)
+3.  Find your use case (2 min)
+4.  Copy-paste code into your component (5 min)
+5.  Test in browser (2 min)
+6.  Celebrate your new notification system! 🎉
 
 ---
 

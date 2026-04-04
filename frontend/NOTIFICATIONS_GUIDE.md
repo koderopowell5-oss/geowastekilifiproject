@@ -68,12 +68,12 @@ showInfo('Please note this information', 4000);
 ```
 
 #### Features:
-- ✅ Auto-dismiss (default 4000ms)
-- ✅ Manual close button (X)
-- ✅ Smooth animations (fade in/out)
-- ✅ Stacked multiple notifications
-- ✅ Styled with brand colors
-- ✅ Icons: CheckCircle (success), AlertCircle (error), Info (info)
+-  Auto-dismiss (default 4000ms)
+-  Manual close button (X)
+-  Smooth animations (fade in/out)
+-  Stacked multiple notifications
+-  Styled with brand colors
+-  Icons: CheckCircle (success), AlertCircle (error), Info (info)
 
 ---
 
@@ -125,11 +125,11 @@ interface SuccessCardProps {
 ```
 
 #### Features:
-- ✅ Green color scheme (#56C596)
-- ✅ CheckCircle icon
-- ✅ Close button (X)
-- ✅ Rounded corners with subtle border
-- ✅ Responsive sizing
+-  Green color scheme (#56C596)
+-  CheckCircle icon
+-  Close button (X)
+-  Rounded corners with subtle border
+-  Responsive sizing
 
 ---
 
@@ -184,11 +184,11 @@ interface FailCardProps {
 ```
 
 #### Features:
-- ✅ Red color scheme (red-500/red-600)
-- ✅ AlertCircle icon
-- ✅ Close button (X)
-- ✅ Rounded corners with subtle border
-- ✅ Responsive sizing
+-  Red color scheme (red-500/red-600)
+-  AlertCircle icon
+-  Close button (X)
+-  Rounded corners with subtle border
+-  Responsive sizing
 
 ---
 
@@ -350,14 +350,14 @@ const DataImport = () => {
 
 3. **Keep messages concise** - Users should understand at a glance
    ```tsx
-   ✅ showSuccess('Record saved');
-   ❌ showSuccess('Your waste collection record has been successfully saved to the database');
+    showSuccess('Record saved');
+   showSuccess('Your waste collection record has been successfully saved to the database');
    ```
 
 4. **Use appropriate types** - Match message tone to notification type
    ```tsx
-   ✅ showError('Failed to save');
-   ❌ showInfo('Failed to save');
+    showError('Failed to save');
+   showInfo('Failed to save');
    ```
 
 5. **Handle async operations** carefully

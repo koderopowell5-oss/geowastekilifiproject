@@ -26,9 +26,9 @@ Write-Host "[1/5] Stopping PostgreSQL service..." -ForegroundColor Cyan
 try {
     Stop-Service -Name $serviceName -Force -ErrorAction Stop
     Start-Sleep -Seconds 3
-    Write-Host "✅ Service stopped" -ForegroundColor Green
+    Write-Host " Service stopped" -ForegroundColor Green
 } catch {
-    Write-Host "⚠️  Could not stop service: $_" -ForegroundColor Yellow
+    Write-Host "Could not stop service: $_" -ForegroundColor Yellow
 }
 
 Write-Host ""
@@ -39,16 +39,16 @@ if (Test-Path $pgData) {
     try {
         # Remove the directory completely to avoid permission issues
         Remove-Item -Path $pgData -Recurse -Force -ErrorAction Stop
-        Write-Host "✅ Old data directory removed" -ForegroundColor Green
+        Write-Host " Old data directory removed" -ForegroundColor Green
     } catch {
-        Write-Host "⚠️  Could not remove old directory: $_" -ForegroundColor Yellow
+        Write-Host "Could not remove old directory: $_" -ForegroundColor Yellow
         # Try renaming as backup
         try {
             $backupPath = "$pgData-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
             Rename-Item -Path $pgData -NewName $backupPath -Force
-            Write-Host "✅ Backup created: $backupPath" -ForegroundColor Green
+            Write-Host " Backup created: $backupPath" -ForegroundColor Green
         } catch {
-            Write-Host "❌ Error: $_" -ForegroundColor Red
+            Write-Host "Error: $_" -ForegroundColor Red
         }
     }
 } else {
@@ -59,9 +59,9 @@ if (Test-Path $pgData) {
 Write-Host "Creating new data directory..." -ForegroundColor Cyan
 try {
     New-Item -ItemType Directory -Path $pgData -Force -ErrorAction Stop | Out-Null
-    Write-Host "✅ Data directory created" -ForegroundColor Green
+    Write-Host " Data directory created" -ForegroundColor Green
 } catch {
-    Write-Host "❌ Could not create directory: $_" -ForegroundColor Red
+    Write-Host "Could not create directory: $_" -ForegroundColor Red
     exit 1
 }
 
@@ -72,9 +72,9 @@ Write-Host "[3/5] Reinitializing database cluster..." -ForegroundColor Cyan
 $initdbCmd = "$pgBin\initdb.exe"
 if (Test-Path $initdbCmd) {
     & $initdbCmd -D $pgData -E UTF8 -U postgres
-    Write-Host "✅ Database initialized" -ForegroundColor Green
+    Write-Host " Database initialized" -ForegroundColor Green
 } else {
-    Write-Host "❌ initdb not found at: $initdbCmd" -ForegroundColor Red
+    Write-Host "initdb not found at: $initdbCmd" -ForegroundColor Red
     exit 1
 }
 
@@ -85,9 +85,9 @@ Write-Host "[4/5] Starting PostgreSQL service..." -ForegroundColor Cyan
 try {
     Start-Service -Name $serviceName -ErrorAction Stop
     Start-Sleep -Seconds 3
-    Write-Host "✅ Service started" -ForegroundColor Green
+    Write-Host " Service started" -ForegroundColor Green
 } catch {
-    Write-Host "❌ Could not start service: $_" -ForegroundColor Red
+    Write-Host "Could not start service: $_" -ForegroundColor Red
     exit 1
 }
 
@@ -97,9 +97,9 @@ Write-Host ""
 Write-Host "[5/5] Creating geowaste_kilifi database..." -ForegroundColor Cyan
 try {
     & "$pgBin\createdb.exe" -U postgres -h localhost geowaste_kilifi
-    Write-Host "✅ Database created" -ForegroundColor Green
+    Write-Host " Database created" -ForegroundColor Green
 } catch {
-    Write-Host "⚠️  Warning: $_" -ForegroundColor Yellow
+    Write-Host "Warning: $_" -ForegroundColor Yellow
 }
 
 Write-Host ""
