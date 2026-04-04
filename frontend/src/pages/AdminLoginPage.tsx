@@ -113,7 +113,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onBackToLogin })
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-[#329D9C] transition-colors"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-[#329D9C] hover:bg-[#329D9C]/5 transition-all duration-200 p-1 rounded-lg"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -125,7 +125,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onBackToLogin })
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#205072] hover:bg-[#329D9C] text-white text-[13px] font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-[#205072]/20 hover:shadow-[#329D9C]/20"
+              className="w-full mt-2 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-[#205072] to-[#329D9C] hover:from-[#329D9C] hover:to-[#1f7b7a] text-white text-[13px] font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-[#205072]/30 hover:shadow-[#329D9C]/40 hover:scale-105 active:scale-95"
             >
               {isLoading ? (
                 <>
@@ -152,7 +152,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onBackToLogin })
           <button
             type="button"
             onClick={() => setShowHint(!showHint)}
-            className="w-full text-center text-[12px] font-semibold text-[#329D9C] hover:text-[#205072] transition-colors"
+            className="w-full text-center text-[12px] font-semibold text-[#329D9C] hover:text-[#205072] transition-all duration-200 py-2 rounded-lg hover:bg-[#f0faf5]"
           >
             {showHint ? 'Hide credentials hint' : 'Show credentials hint'}
           </button>

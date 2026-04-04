@@ -95,6 +95,43 @@ class WasteApiService {
   }
 
   /**
+   * Register a new enumerator
+   */
+  async signupEnumerator(
+    email: string,
+    password: string,
+    name: string,
+    ward: string,
+    phone: string
+  ): Promise<any> {
+    const response = await this.api.post<ApiResponse<any>>('/auth/signup', {
+      email,
+      password,
+      name,
+      ward,
+      phone,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Registration failed');
+    }
+    return response.data.data;
+  }
+
+  /**
+   * Login an enumerator
+   */
+  async loginEnumerator(email: string, password: string): Promise<any> {
+    const response = await this.api.post<ApiResponse<any>>('/auth/login', {
+      email,
+      password,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Login failed');
+    }
+    return response.data.data;
+  }
+
+  /**
    * Check API health
    */
   async checkHealth(): Promise<boolean> {

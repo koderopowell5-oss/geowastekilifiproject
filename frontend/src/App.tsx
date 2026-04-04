@@ -3,6 +3,8 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { EnumeratorDashboard } from './components/EnumeratorDashboard';
 import { Auth } from './pages/Auth';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
+import { ToastContainer } from './components/Toast';
 import './App.css';
 
 const AppContent: React.FC = () => {
@@ -40,7 +42,10 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <AppContent />
+      <NotificationProvider>
+        <ToastContainer />
+        <AppContent />
+      </NotificationProvider>
     </AuthProvider>
   );
 };

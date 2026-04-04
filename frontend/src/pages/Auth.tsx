@@ -120,14 +120,39 @@ const authCss = `
   }
   .auth-input::placeholder { color: #b4ccc0; font-weight: 400; }
   .auth-input:disabled { opacity: 0.5; cursor: not-allowed; }
+  
+  /* ── Select dropdown styling ── */
+  .auth-field:has(.auth-select) {
+    position: relative;
+  }
   .auth-select {
     width: 100%; border: none; outline: none;
     background: transparent; appearance: none;
     font-size: 14px; font-weight: 500; color: var(--text);
     font-family: 'DM Sans', sans-serif;
-    padding: 0; cursor: pointer;
+    padding: 0 28px 0 0; cursor: pointer;
+    position: relative; z-index: 1;
   }
   .auth-select:disabled { opacity: 0.5; cursor: not-allowed; }
+  .auth-field:has(.auth-select)::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237a9a8a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .auth-field:has(.auth-select:focus) {
+    border-color: var(--teal);
+  }
+  
   .auth-field-hint {
     font-size: 11px; color: var(--muted); margin-top: 3px;
     font-family: 'DM Mono', monospace;

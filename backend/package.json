@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "npm run build && node dist/index.js",
     "db:init": "psql -U postgres -d geowaste_kilifi -f ../database/schema.sql",
     "lint": "eslint src/**/*.ts"
   },

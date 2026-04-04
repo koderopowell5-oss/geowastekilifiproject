@@ -4,6 +4,23 @@
 -- Create PostGIS extension if not exists
 CREATE EXTENSION IF NOT EXISTS postgis;
 
+-- Create enumerators table
+CREATE TABLE IF NOT EXISTS enumerators (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  ward VARCHAR(50) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  role VARCHAR(20) DEFAULT 'enumerator',
+  status VARCHAR(20) DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_enumerators_email ON enumerators (email);
+CREATE INDEX IF NOT EXISTS idx_enumerators_ward ON enumerators (ward);
+
 -- Create waste_sites table
 CREATE TABLE IF NOT EXISTS waste_sites (
   id SERIAL PRIMARY KEY,

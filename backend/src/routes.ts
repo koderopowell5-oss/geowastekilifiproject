@@ -1,8 +1,122 @@
 import { Router, Request, Response } from 'express';
 import { WasteService } from './service';
+import { AuthService } from './authService';
 import { ApiResponse, WasteSiteRecord } from '../../types';
 
 const router = Router();
+
+/**
+ * POST /api/auth/signup
+ * Register a new enumerator
+ */
+router.post('/auth/signup', async (req: Request, res: Response) => {
+  try {
+    const { email, password, name, ward, phone } = req.body;
+
+    // Validate required fields
+    if (!email || !password || !name || !ward || !phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields',
+        error: 'email, password, name, ward, and phone are required',
+      } as ApiResponse);
+    }
+
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format',
+      } as ApiResponse);
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters',
+      } as ApiResponse);
+    }
+
+    const enumerator = await AuthService.registerEnumerator({
+      email,
+      password,
+      name,
+      ward,
+      phone,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Enumerator registered successfully',
+      data: enumerator,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error registering enumerator:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Registration failed',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/auth/login
+ * Authenticate an enumerator
+ */
+router.post('/auth/login', async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate required fields
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields',
+        error: 'email and password are required',
+      } as ApiResponse);
+    }
+
+    const enumerator = await AuthService.authenticateEnumerator(email, password);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: enumerator,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error authenticating enumerator:', error);
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid credentials',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/auth/enumerators
+ * Get all enumerators
+ */
+router.get('/auth/enumerators', async (req: Request, res: Response) => {
+  try {
+    const enumerators = await AuthService.getAllEnumerators();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Enumerators retrieved successfully',
+      data: enumerators,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error retrieving enumerators:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
 
 /**
  * POST /api/waste

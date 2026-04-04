@@ -115,7 +115,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup, onNavi
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-[#329D9C] transition-colors"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-[#329D9C] hover:bg-[#329D9C]/5 transition-all duration-200 p-1 rounded-lg"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -127,7 +127,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup, onNavi
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#56C596] hover:bg-[#329D9C] text-white text-[13px] font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-[#56C596]/20 hover:shadow-[#329D9C]/20"
+              className="w-full mt-2 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-[#56C596] to-[#329D9C] hover:from-[#329D9C] hover:to-[#1f7b7a] text-white text-[13px] font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-[#56C596]/30 hover:shadow-[#329D9C]/40 hover:scale-105 active:scale-95"
             >
               {isLoading ? (
                 <>
@@ -154,7 +154,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup, onNavi
           <button
             type="button"
             onClick={() => setShowDemo(!showDemo)}
-            className="w-full text-center text-[12px] font-semibold text-[#329D9C] hover:text-[#205072] transition-colors"
+            className="w-full text-center text-[12px] font-semibold text-[#329D9C] hover:text-[#205072] transition-all duration-200 py-2 rounded-lg hover:bg-[#f0faf5]"
           >
             {showDemo ? 'Hide Demo Accounts' : 'Show Demo Accounts'}
           </button>
@@ -171,7 +171,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup, onNavi
                   type="button"
                   onClick={() => quickLogin(account.email)}
                   disabled={isLoading}
-                  className="w-full px-3.5 py-3 bg-[#f0faf5] border border-[#CFF4D2] hover:border-[#329D9C] hover:bg-[#56C596]/5 rounded-2xl text-left transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-3.5 py-3 bg-[#f0faf5] border border-[#CFF4D2] hover:border-[#329D9C] hover:bg-[#56C596]/10 hover:shadow-md hover:shadow-[#329D9C]/10 rounded-2xl text-left transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-102"
                 >
                   <p className="font-semibold text-[#205072] text-[12px]">{account.name}</p>
                   <p className="text-[#329D9C] text-[10px]">{account.email}</p>
@@ -193,7 +193,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup, onNavi
             <button
               onClick={onNavigateToSignup}
               disabled={isLoading}
-              className="w-full px-4 py-3 bg-[#56C596]/10 hover:bg-[#56C596]/20 border border-[#56C596]/30 text-[#56C596] font-bold rounded-xl transition text-[13px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-4 py-3.5 bg-[#56C596]/10 hover:bg-[#56C596]/20 border border-[#56C596]/30 hover:border-[#56C596] text-[#56C596] font-bold rounded-xl transition-all duration-200 text-[13px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md hover:shadow-[#56C596]/20 hover:scale-105"
             >
               <UserPlus size={15} />
               Create New Account
@@ -202,7 +202,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup, onNavi
             <button
               onClick={onNavigateToAdminLogin}
               disabled={isLoading}
-              className="w-full px-4 py-3 bg-[#205072]/10 hover:bg-[#205072]/20 border border-[#205072]/30 text-[#205072] font-bold rounded-xl transition text-[13px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-4 py-3.5 bg-[#205072]/10 hover:bg-[#205072]/20 border border-[#205072]/30 hover:border-[#205072] text-[#205072] font-bold rounded-xl transition-all duration-200 text-[13px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md hover:shadow-[#205072]/20 hover:scale-105"
             >
               <ShieldCheck size={15} />
               Admin Login

@@ -1,7 +1,8 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { wasteApiService } from '../services/wasteApi';
 
 export interface Enumerator {
-  id: string;
+  id: string | number;
   name: string;
   email: string;
   ward: string;
@@ -124,37 +125,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (name: string, email: string, password: string, ward: string, phone: string): Promise<void> => {
     setIsLoading(true);
     try {
-      // Validate email doesn't already exist
-      if (DEMO_ENUMERATORS[email]) {
-        throw new Error('Email already registered');
-      }
+      // Call backend API to register user
+      const enumerator = await wasteApiService.signupEnumerator(email, password, name, ward, phone);
 
+      // Store in localStorage as backup
       const registeredUsers = JSON.parse(localStorage.getItem('registered_users') || '{}');
-      if (registeredUsers[email]) {
-        throw new Error('Email already registered');
-      }
-
-      // Simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Create new enumerator
-      const newEnumerator: Enumerator = {
-        id: `user_${Date.now()}`,
-        name,
-        email,
-        ward,
-        phone,
-      };
-
-      // Store user
       registeredUsers[email] = {
         password,
-        enumerator: newEnumerator,
+        enumerator: {
+          id: enumerator.id,
+          name: enumerator.name,
+          email: enumerator.email,
+          ward: enumerator.ward,
+          phone: enumerator.phone,
+        } as Enumerator,
       };
-
       localStorage.setItem('registered_users', JSON.stringify(registeredUsers));
-      localStorage.setItem('auth_user', JSON.stringify(newEnumerator));
-      setUser(newEnumerator);
+
+      // Set current user
+      const user: Enumerator = {
+        id: enumerator.id,
+        name: enumerator.name,
+        email: enumerator.email,
+        ward: enumerator.ward,
+        phone: enumerator.phone,
+      };
+      localStorage.setItem('auth_user', JSON.stringify(user));
+      setUser(user);
     } finally {
       setIsLoading(false);
     }

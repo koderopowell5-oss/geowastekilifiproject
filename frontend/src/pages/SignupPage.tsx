@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertCircle, Loader2, ArrowLeft, Eye, EyeOff, Mail, Lock, User, Phone, MapPin, CheckCircle } from 'lucide-react';
+import { AlertCircle, Loader2, ArrowLeft, Eye, EyeOff, Mail, Lock, User, Phone, MapPin, CheckCircle, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface SignupPageProps {
@@ -189,7 +189,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
                   value={formData.ward}
                   onChange={handleChange}
                   disabled={isLoading}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#CFF4D2] bg-[#f0faf5] text-[#205072] text-[13px] font-medium focus:outline-none focus:border-[#329D9C] focus:ring-2 focus:ring-[#329D9C]/15 transition-all disabled:opacity-50 appearance-none"
+                  className="w-full pl-10 pr-10 py-3 rounded-xl border border-[#CFF4D2] bg-[#f0faf5] text-[#205072] text-[13px] font-medium focus:outline-none focus:border-[#329D9C] focus:ring-2 focus:ring-[#329D9C]/15 transition-all disabled:opacity-50 appearance-none cursor-pointer hover:border-[#329D9C]"
                 >
                   <option value="">Select a ward</option>
                   {wards.map((ward) => (
@@ -198,6 +198,9 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
                     </option>
                   ))}
                 </select>
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#329D9C] pointer-events-none">
+                  <ChevronDown size={15} />
+                </div>
               </div>
             </div>
 
@@ -244,7 +247,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-[#329D9C] transition-colors"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-[#329D9C] hover:bg-[#329D9C]/5 transition-all duration-200 p-1 rounded-lg"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -274,7 +277,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-[#329D9C] transition-colors"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-[#329D9C] hover:bg-[#329D9C]/5 transition-all duration-200 p-1 rounded-lg"
                   tabIndex={-1}
                 >
                   {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -286,7 +289,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#56C596] hover:bg-[#329D9C] text-white text-[13px] font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-[#56C596]/20 hover:shadow-[#329D9C]/20"
+              className="w-full mt-2 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-[#56C596] to-[#329D9C] hover:from-[#329D9C] hover:to-[#1f7b7a] text-white text-[13px] font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-[#56C596]/30 hover:shadow-[#329D9C]/40 hover:scale-105 active:scale-95"
             >
               {isLoading ? (
                 <>
@@ -313,7 +316,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
           <button
             onClick={onBackToLogin}
             disabled={isLoading}
-            className="w-full text-center text-[12px] font-semibold text-[#329D9C] hover:text-[#205072] transition-colors disabled:opacity-50"
+            className="w-full text-center text-[12px] font-semibold text-[#329D9C] hover:text-[#205072] transition-all duration-200 disabled:opacity-50 py-2 rounded-lg hover:bg-[#f0faf5]"
           >
             Back to Sign In
           </button>
