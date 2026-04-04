@@ -112,6 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const adminUser: Admin = {
+        id: 'admin-1',
         username: ADMIN_USERNAME,
         isAdmin: true,
       };
