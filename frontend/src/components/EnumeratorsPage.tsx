@@ -347,7 +347,7 @@ export const EnumeratorsPage: React.FC<EnumeratorsPageProps> = ({ sites }) => {
                       key={enumerator.id}
                       className="en-card"
                       style={{ animationDelay: `${i * 60}ms` }}
-                      onClick={() => setDetailId(enumerator.id)}
+                      onClick={() => setDetailId(String(enumerator.id))}
                     >
                       <div className="en-card-left">
                         <div className="en-avatar-sm">{initials(enumerator.name)}</div>

@@ -54,6 +54,9 @@ export interface WasteSiteRecord {
   challenges: string;
   suggested_location: string;
 
+  // Enumerator metadata
+  enumerator_email?: string;
+
   // Metadata
   created_at?: string;
   updated_at?: string;
