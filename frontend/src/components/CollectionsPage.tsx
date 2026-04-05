@@ -29,32 +29,53 @@ interface CollectionsPageProps {
 
 export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, onStartNew }) => {
   const [drafts, setDrafts] = useState<DraftForm[]>([]);
+  const [submittedCollections, setSubmittedCollections] = useState<WasteSiteRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'draft' | 'submitted' | 'all'>('draft');
+  const [filter, setFilter] = useState<'draft' | 'submitted' | 'all'>('all');
   const [submitting, setSubmitting] = useState<string | null>(null);
-  const { showError, showSuccess, showInfo } = useNotification();
+  const { showError, showSuccess } = useNotification();
   const { user } = useAuth();
 
   useEffect(() => {
-    try {
-      setLoading(true);
-      const userEmail = (user as any)?.email;
-      if (!userEmail) { setError('User email not found'); setLoading(false); return; }
-      const stored = localStorage.getItem(`geowaste_drafts_${userEmail}`);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setDrafts(Array.isArray(parsed) ? parsed : []);
-        showInfo(`Loaded ${parsed.length} draft(s)`);
+    const fetchCollections = async () => {
+      try {
+        setLoading(true);
+        const userEmail = (user as any)?.email;
+        if (!userEmail) { 
+          setError('User email not found'); 
+          setLoading(false); 
+          return; 
+        }
+
+        // Fetch submitted collections from API
+        try {
+          const result = await wasteApiService.getWasteSitesByEnumerator(userEmail);
+          setSubmittedCollections(result.records || []);
+        } catch (e: any) {
+          console.error('Error fetching submitted collections:', e);
+          setSubmittedCollections([]);
+        }
+
+        // Fetch drafts from localStorage
+        const stored = localStorage.getItem(`geowaste_drafts_${userEmail}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setDrafts(Array.isArray(parsed) ? parsed : []);
+        }
+        
+        setError(null);
+      } catch (err: any) {
+        const errMsg = err.message || 'Failed to load collections';
+        setError(errMsg);
+        showError(errMsg);
+      } finally {
+        setLoading(false);
       }
-      setError(null);
-    } catch {
-      setError('Failed to load collections');
-      showError('Failed to load collections');
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+    };
+
+    fetchCollections();
+  }, [user, showError]);
 
   const handleDelete = (id: string) => {
     if (!window.confirm('Delete this survey?')) return;
@@ -90,15 +111,27 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
 
   const counts = {
     draft:     drafts.filter(d => d.status === 'draft').length,
-    submitted: drafts.filter(d => d.status === 'submitted').length,
-    all:       drafts.length,
+    submitted: submittedCollections.length, // Use API submitted collections count
+    all:       drafts.length + submittedCollections.length,
   };
 
-  const filtered = drafts.filter(d => {
-    if (filter === 'draft') return d.status === 'draft';
-    if (filter === 'submitted') return d.status === 'submitted';
-    return true;
-  });
+  const filtered = (() => {
+    const draftItems = drafts.map(d => ({ ...d, _type: 'draft' as const, _id: d.id }));
+    const submittedItems = submittedCollections.map((s, idx) => ({ 
+      id: s.id?.toString() || String(idx),
+      _type: 'submitted' as const,
+      _id: s.id?.toString() || String(idx),
+      title: `${s.ward} · ${s.settlement_type}`,
+      createdAt: s.created_at || new Date().toISOString(),
+      _data: s,
+    }));
+    
+    const allItems = [...draftItems, ...submittedItems];
+    
+    if (filter === 'draft') return allItems.filter((i: any) => i._type === 'draft');
+    if (filter === 'submitted') return allItems.filter((i: any) => i._type === 'submitted');
+    return allItems;
+  })();
 
   return (
     <>
@@ -186,11 +219,14 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
 
             /* Survey list */
             <div className="col-list">
-              {filtered.map((draft, i) => {
-                const isSubmitting = submitting === draft.id;
-                const isDraft = draft.status === 'draft';
+              {filtered.map((item: any, i) => {
+                const isSubmitting = submitting === item._id;
+                const isDraft = item._type === 'draft';
+                const ward = isDraft ? item.ward : item._data?.ward || '—';
+                const date = new Date(isDraft ? item.createdAt : item._data?.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                
                 return (
-                  <div key={draft.id} className="col-item" style={{ animationDelay: `${i * 50}ms` }}>
+                  <div key={item._id} className="col-item" style={{ animationDelay: `${i * 50}ms` }}>
 
                     {/* Left: status icon */}
                     <div className={`col-item-icon ${isDraft ? 'col-item-icon--draft' : 'col-item-icon--done'}`}>
@@ -202,9 +238,9 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
 
                     {/* Middle: meta */}
                     <div className="col-item-body">
-                      <p className="col-item-id">Survey #{draft.id.slice(0, 8).toUpperCase()}</p>
+                      <p className="col-item-id">Survey #{item._id.toString().slice(0, 8).toUpperCase()}</p>
                       <p className="col-item-meta">
-                        {draft.ward} · {new Date(draft.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {ward} · {date}
                       </p>
                     </div>
 
@@ -214,14 +250,14 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
                         <>
                           <button
                             className="col-action-btn col-action-btn--edit"
-                            onClick={() => onEditDraft?.(draft.id, draft.formData)}
+                            onClick={() => onEditDraft?.(item.id, item.formData)}
                             title="Edit draft"
                           >
                             <Pencil size={13} />
                           </button>
                           <button
                             className="col-action-btn col-action-btn--submit"
-                            onClick={() => handleSubmit(draft)}
+                            onClick={() => handleSubmit(item)}
                             disabled={isSubmitting}
                             title="Submit"
                           >
@@ -230,16 +266,16 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
                               : <CheckCircle2 size={13} />
                             }
                           </button>
+                          <button
+                            className="col-action-btn col-action-btn--delete"
+                            onClick={() => handleDelete(item.id)}
+                            disabled={isSubmitting}
+                            title="Delete"
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </>
                       )}
-                      <button
-                        className="col-action-btn col-action-btn--delete"
-                        onClick={() => handleDelete(draft.id)}
-                        disabled={isSubmitting}
-                        title="Delete"
-                      >
-                        <Trash2 size={13} />
-                      </button>
                     </div>
                   </div>
                 );
@@ -270,6 +306,18 @@ const css = `
     --text:   #1c3a2e;
     --muted:  #7a9a8a;
     --r:      10px;
+  }
+
+  /* ── Hide scrollbars on mobile ── */
+  @media (max-width: 768px) {
+    html, body {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    html::-webkit-scrollbar,
+    body::-webkit-scrollbar {
+      display: none;
+    }
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }

@@ -18,14 +18,17 @@ class WasteApiService {
     this.api.interceptors.response.use(
       (response) => response,
       (error) => {
-        console.error('API Error:', error);
-        
         if (error.response) {
           // Server responded with error status code
           const errorMsg = error.response.data?.message || error.response.statusText || 'Request failed';
           const errorCode = error.response.status;
           
-          console.error(`HTTP ${errorCode}: ${errorMsg}`);
+          // Don't log 404 errors from drafts endpoint - they're expected when no draft exists
+          const isExpectedDraftsNotFound = errorCode === 404 && error.config?.url?.includes('/drafts/');
+          if (!isExpectedDraftsNotFound) {
+            console.error('API Error:', error);
+            console.error(`HTTP ${errorCode}: ${errorMsg}`);
+          }
           
           if (errorCode === 401) {
             throw new Error('Invalid email or password. Please check your credentials.');

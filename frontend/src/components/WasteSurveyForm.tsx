@@ -494,6 +494,18 @@ const css = `
     --r:      10px;
   }
 
+  /* ── Hide scrollbars on mobile ── */
+  @media (max-width: 768px) {
+    html, body {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    html::-webkit-scrollbar,
+    body::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   .root {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, MapPin, Edit3, Settings, LogOut, User } from 'lucide-react';
+import { Home, MapPin, Edit3, Settings, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { Dashboard } from './Dashboard';
@@ -8,6 +8,35 @@ import { WasteMap } from './WasteMap';
 import { ProfileTab } from './ProfileTab';
 import { FloatingTabBar } from './FloatingTabBar';
 import { CollectionsPage } from './CollectionsPage';
+
+// ─── Shared image banner ──────────────────────────────────────────────────────
+
+const PageBanner: React.FC<{ src: string; alt: string }> = ({ src, alt }) => (
+  <div style={{
+    width: '100%',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: '24px 24px 0',
+    maxWidth: 480,
+    margin: '0 auto',
+  }}>
+    <img
+      src={src}
+      alt={alt}
+      style={{
+        width: '100%',
+        maxWidth: 320,
+        height: 'auto',
+        maxHeight: 200,
+        objectFit: 'contain',
+        display: 'block',
+      }}
+    />
+  </div>
+);
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export const EnumeratorDashboard: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<string>('home');
@@ -40,150 +69,111 @@ export const EnumeratorDashboard: React.FC = () => {
     setCurrentPage('home');
   };
 
-  // Don't show enumerator dashboard if admin
-  if (isAdmin) {
-    return null;
-  }
+  if (isAdmin) return null;
 
   return (
-    <div className="min-h-screen bg-[#f0faf5] font-sans">
-      {/* Header */}
-      <div className="bg-white border-b border-[#CFF4D2]/60 px-4 sm:px-6 py-3 sm:py-4 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-3">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-[#329D9C] flex items-center justify-center shrink-0">
-              <MapPin size={18} className="text-white" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-[14px] sm:text-[15px] font-bold text-[#205072] leading-none truncate">GeoWaste Kilifi</h1>
-              <p className="text-[10px] sm:text-[11px] text-[#56C596] mt-0.5 leading-none">Field Collection</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <div className="hidden sm:flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-[#f0faf5] border border-[#CFF4D2]/60">
-              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#329D9C] flex items-center justify-center shrink-0">
-                <User size={12} className="text-white" />
-              </div>
-              <div className="hidden md:block min-w-0">
-                <p className="text-[10px] sm:text-[11px] font-semibold text-[#205072] leading-none truncate">{(user as any)?.name || 'Enumerator'}</p>
-                <p className="text-[8px] sm:text-[9px] text-[#56C596] mt-0.5 leading-none">{(user as any)?.ward || 'Ward'}</p>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="hidden sm:flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-[12px] font-medium border border-[#CFF4D2] text-[#205072] hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition-all"
-            >
-              <LogOut size={13} /> <span className="hidden md:inline">Logout</span>
-            </button>
-          </div>
-        </div>
-      </div>
+    <>
+      <style>{css}</style>
+      <div className="enum-root">
 
-      {/* Main Content with FloatingTabBar */}
-      <div className="pb-32 sm:pb-6">
+        {/* ── App bar ── */}
+        <header className="enum-appbar">
+          <div className="enum-appbar-inner">
+            <div className="enum-appbar-left">
+              <div className="enum-app-icon">
+                <MapPin size={16} color="white" />
+              </div>
+              <div>
+                <p className="enum-app-name">GeoWaste Kilifi</p>
+                <p className="enum-app-sub">Field Collection</p>
+              </div>
+            </div>
+
+            <div className="enum-appbar-right">
+              <div className="enum-user-chip">
+                <div className="enum-user-avatar">
+                  <User size={12} color="white" />
+                </div>
+                <div className="enum-user-meta">
+                  <p className="enum-user-name">{(user as any)?.name || 'Enumerator'}</p>
+                  <p className="enum-user-ward">{(user as any)?.ward || 'Ward'}</p>
+                </div>
+              </div>
+              <button className="enum-logout-btn" onClick={handleLogout}>
+                Sign out
+              </button>
+            </div>
+          </div>
+          <div className="enum-progress-rail">
+            <div className="enum-progress-fill" />
+          </div>
+        </header>
+
+        {/* ── Tabs ── */}
         <FloatingTabBar
           tabs={[
             {
               id: 'home',
               label: 'Home',
-              icon: <Home size={20} className="sm:w-[18px] sm:h-[18px]" />,
+              icon: <Home size={20} />,
               content: (
-              <div className="min-h-screen flex flex-col items-center justify-center px-4">
-                
-                <div className="w-full max-w-xs sm:max-w-sm md:max-w-md mb-4 sm:mb-6">
-                  <img 
-                    src="images/home.svg" 
-                    alt="Home Dashboard"
-                    className="w-full h-auto object-contain mx-auto"
-                  />
+                <div className="enum-page">
+                  <PageBanner src="images/home.svg" alt="Home" />
+                  <div className="enum-page-content">
+                    <Dashboard hideHeader={true} />
+                  </div>
                 </div>
-
-                <div className="w-full max-w-md">
-                  <Dashboard hideHeader={true} />
-                </div>
-
-              </div>
               ),
             },
             {
               id: 'survey',
               label: 'Survey',
-              icon: <Edit3 size={20} className="sm:w-[18px] sm:h-[18px]" />,
+              icon: <Edit3 size={20} />,
               content: showCollections ? (
-                <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-                  <button
-                    onClick={() => setShowCollections(false)}
-                    className="mb-6 text-sm font-medium text-[#329D9C] hover:text-[#205072] transition-colors flex items-center gap-1"
-                  >
-                    ← Back
-                  </button>
-                  <CollectionsPage onEditDraft={handleEditDraft} onStartNew={handleStartNew} />
-                </div>
+                <CollectionsPage onEditDraft={handleEditDraft} onStartNew={handleStartNew} />
               ) : (
-                <>
-                  <div className="w-full max-w-xs sm:max-w-sm md:max-w-md mb-4 sm:mb-6">
-                    <img 
-                      src="images/survey.svg" 
-                      alt="Survey"
-                      className="w-full h-auto object-contain mx-auto"
-                    />
-                  </div>
-                  <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-                    <WasteSurveyForm 
+                <div className="enum-page">
+                  <PageBanner src="images/survey.svg" alt="Survey" />
+                  <div className="enum-page-content">
+                    <WasteSurveyForm
                       hideHeader={true}
                       draftId={editingDraftId}
                       initialData={editingDraftData}
                       userEmail={(user as any)?.email}
                       onSubmitSuccess={handleSurveySuccess}
                     />
-                    <div className="mt-6 pt-6 border-t border-[#CFF4D2]/60 flex justify-center">
-                      <button
-                        onClick={() => setShowCollections(true)}
-                        className="px-5 sm:px-6 py-2 sm:py-2.5 bg-[#56C596] hover:bg-[#329D9C] text-white text-sm font-semibold rounded transition-all"
-                      >
+                    <div className="enum-collections-cta">
+                      <hr className="enum-divider" />
+                      <button className="enum-cta-btn" onClick={() => setShowCollections(true)}>
                         View My Collections
                       </button>
                     </div>
                   </div>
-                </>
+                </div>
               ),
             },
             {
               id: 'map',
               label: 'Map',
-              icon: <MapPin size={20} className="sm:w-[18px] sm:h-[18px]" />,
+              icon: <MapPin size={20} />,
               content: (
-                <>
-                  <div className="w-full max-w-xs sm:max-w-sm md:max-w-md mb-4 sm:mb-6">
-                    <img 
-                      src="images/map.svg" 
-                      alt="Map"
-                      className="w-full h-auto object-contain mx-auto"
-                    />
+                <div className="enum-page">
+                  <PageBanner src="images/map.svg" alt="Map" />
+                  <div className="enum-map-wrap">
+                    <WasteMap hideHeader={true} />
                   </div>
-                  <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-                    <div className="bg-white rounded-xl sm:rounded-2xl border border-[#CFF4D2]/60 overflow-hidden h-[calc(100vh-200px)]">
-                      <WasteMap hideHeader={true} />
-                    </div>
-                  </div>
-                </>
+                </div>
               ),
             },
             {
               id: 'profile',
               label: 'Profile',
-              icon: <Settings size={20} className="sm:w-[18px] sm:h-[18px]" />,
+              icon: <Settings size={20} />,
               content: (
-                <>
-                  <div className="w-full max-w-xs sm:max-w-sm md:max-w-md mb-4 sm:mb-6">
-                    <img 
-                      src="images/profile.svg" 
-                      alt="Profile"
-                      className="w-full h-auto object-contain mx-auto"
-                    />
-                  </div>
+                <div className="enum-page">
+                  <PageBanner src="images/profile.svg" alt="Profile" />
                   <ProfileTab />
-                </>
+                </div>
               ),
             },
           ]}
@@ -191,6 +181,159 @@ export const EnumeratorDashboard: React.FC = () => {
           onTabChange={setCurrentPage}
         />
       </div>
-    </div>
+    </>
   );
 };
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --teal:   #329D9C;
+    --teal-d: #205072;
+    --teal-l: #56C596;
+    --foam:   #CFF4D2;
+    --bg:     #f6fbf8;
+    --border: #e2ede8;
+    --text:   #1c3a2e;
+    --muted:  #7a9a8a;
+    --r:      10px;
+  }
+
+  /* ── Hide scrollbars on mobile ── */
+  @media (max-width: 768px) {
+    html, body {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    html::-webkit-scrollbar,
+    body::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .enum-root {
+    min-height: 100vh;
+    background: var(--bg);
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+  }
+
+  /* ── App bar ── */
+  .enum-appbar {
+    position: sticky; top: 0; z-index: 30;
+    background: rgba(246,251,248,0.94);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .enum-appbar-inner {
+    max-width: 960px; margin: 0 auto;
+    padding: 12px 20px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+  }
+  .enum-appbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .enum-app-icon {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: var(--teal);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .enum-app-name {
+    font-size: 14px; font-weight: 600; color: var(--teal-d);
+    letter-spacing: -0.2px; line-height: 1.2;
+  }
+  .enum-app-sub {
+    font-size: 11px; color: var(--teal-l); font-weight: 500;
+  }
+
+  .enum-appbar-right {
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  }
+  .enum-user-chip {
+    display: none;
+    align-items: center; gap: 8px;
+    padding: 6px 10px; border-radius: 20px;
+    background: white; border: 1px solid var(--border);
+  }
+  @media (min-width: 480px) { .enum-user-chip { display: flex; } }
+  .enum-user-avatar {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--teal);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .enum-user-meta { display: none; }
+  @media (min-width: 640px) { .enum-user-meta { display: block; } }
+  .enum-user-name {
+    font-size: 12px; font-weight: 600; color: var(--teal-d);
+    white-space: nowrap; line-height: 1.2;
+  }
+  .enum-user-ward { font-size: 10px; color: var(--teal-l); font-weight: 500; }
+
+  .enum-logout-btn {
+    display: none;
+    padding: 6px 14px; border-radius: 20px;
+    border: 1.5px solid var(--border);
+    background: transparent; color: var(--muted);
+    font-size: 12px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: all 0.15s;
+  }
+  @media (min-width: 480px) { .enum-logout-btn { display: block; } }
+  .enum-logout-btn:hover { border-color: #fca5a5; color: #dc2626; }
+
+  .enum-progress-rail {
+    max-width: 960px; margin: 0 auto;
+    height: 2px; background: var(--foam);
+  }
+  .enum-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--teal), var(--teal-l));
+    width: 100%;
+  }
+
+  /* ── Page layout ── */
+  .enum-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+
+  .enum-page-content {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  /* ── Map ── */
+  .enum-map-wrap {
+    width: 100%;
+    max-width: 960px;
+    margin: 16px auto 0;
+    padding: 0 16px 100px;
+    height: calc(100vh - 280px);
+    min-height: 400px;
+  }
+
+  /* ── Collections CTA ── */
+  .enum-collections-cta {
+    max-width: 600px; margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+  .enum-divider { border: none; border-top: 1px solid var(--border); margin-bottom: 24px; }
+  .enum-cta-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; padding: 11px 18px;
+    border-radius: var(--r);
+    border: 1.5px solid var(--border);
+    background: transparent; color: var(--text);
+    font-size: 13.5px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .enum-cta-btn:hover { border-color: var(--teal); color: var(--teal); }
+`;
