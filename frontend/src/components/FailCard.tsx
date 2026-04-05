@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, X } from 'lucide-react';
+import { Send, X } from 'lucide-react';
 
 interface FailCardProps {
   title: string;
@@ -18,7 +18,7 @@ export const FailCard: React.FC<FailCardProps> = ({
 }) => {
   return (
     <div className={`flex items-start gap-3 p-4 rounded-xl bg-red-50/80 border border-red-200/50 ${className}`}>
-      <AlertCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+      <Send size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <h3 className="font-semibold text-red-600 text-[13px] mb-1">{title}</h3>
         <p className="text-red-500/80 text-[12px] leading-relaxed">{message}</p>
