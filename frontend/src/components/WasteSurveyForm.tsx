@@ -4,6 +4,8 @@ import { GeolocationService } from '../services/geolocation';
 import { wasteApiService } from '../services/wasteApi';
 import { ChevronLeft, ChevronRight, CheckCircle2, X, Loader2, AlertTriangle } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
+import { SuccessCard } from './SuccessCard';
+import { FailCard } from './FailCard';
 
 interface WasteSurveyFormProps {
   onSubmitSuccess?: () => void;
@@ -199,12 +201,10 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
         await wasteApiService.deleteDraft(userEmail).catch(e => console.error('Error deleting draft:', e));
       }
       
-      showSuccess('Waste site recorded successfully! ✓');
-      setTimeout(() => { if (onSubmitSuccess) onSubmitSuccess(); }, 1800);
+      setTimeout(() => { if (onSubmitSuccess) onSubmitSuccess(); }, 2500);
     } catch (e: any) {
       const errMsg = e.message || 'Submission failed';
       setError(errMsg);
-      showError(errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -364,10 +364,25 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
   if (success) return (
     <>
       <style>{css}</style>
-      <div className="success-screen">
-        <CheckCircle2 size={40} className="success-icon" />
-        <h2 className="success-title">Survey submitted</h2>
-        <p className="success-sub">Returning to dashboard…</p>
+      <div className="root">
+        <header className="header">
+          <div className="header-inner">
+            <div>
+              <p className="header-step">Submission Complete</p>
+              <h1 className="header-title">Survey Recorded</h1>
+            </div>
+          </div>
+        </header>
+        <main className="body" style={{ paddingTop: '48px', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+          <SuccessCard 
+            title="Survey Recorded"
+            message="Waste site recorded successfully! The data has been saved and will help inform waste management planning."
+            onClose={() => {
+              setSuccess(false);
+              if (onSubmitSuccess) onSubmitSuccess();
+            }}
+          />
+        </main>
       </div>
     </>
   );
@@ -413,7 +428,11 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
           <hr className="divider" />
 
           {error && currentSection !== 0 && (
-            <div className="error-msg"><AlertTriangle size={14} />{error}</div>
+            <FailCard 
+              title="Error"
+              message={error}
+              onClose={() => setError(null)}
+            />
           )}
 
           <div key={animKey} className={`anim anim--${animDir}`}>

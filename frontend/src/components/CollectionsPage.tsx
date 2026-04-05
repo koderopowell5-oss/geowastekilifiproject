@@ -3,6 +3,12 @@ import { useAuth } from '../context/AuthContext';
 import { wasteApiService } from '../services/wasteApi';
 import { useNotification } from '../context/NotificationContext';
 import { WasteSiteRecord } from '../../../types';
+import {
+  FileText, CheckCircle2, Clock, Trash2, Pencil,
+  Loader2, AlertTriangle, Plus, SlidersHorizontal,
+} from 'lucide-react';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DraftForm {
   id: string;
@@ -19,233 +25,444 @@ interface CollectionsPageProps {
   onStartNew?: () => void;
 }
 
+// ─── Component ───────────────────────────────────────────────────────────────
+
 export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, onStartNew }) => {
   const [drafts, setDrafts] = useState<DraftForm[]>([]);
   const [loading, setLoading] = useState(true);
-  const { showError, showSuccess, showInfo } = useNotification();
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'draft' | 'submitted' | 'all'>('draft');
   const [submitting, setSubmitting] = useState<string | null>(null);
+  const { showError, showSuccess, showInfo } = useNotification();
   const { user } = useAuth();
 
-  // Load drafts from localStorage on mount
   useEffect(() => {
-    const loadDrafts = () => {
-      try {
-        setLoading(true);
-        const userEmail = (user as any)?.email;
-        if (!userEmail) {
-          const errMsg = 'User email not found';
-          setError(errMsg);
-          showError(errMsg);
-          setLoading(false);
-          return;
-        }
-
-        const key = `geowaste_drafts_${userEmail}`;
-        const stored = localStorage.getItem(key);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setDrafts(Array.isArray(parsed) ? parsed : []);
-          showInfo(`Loaded ${parsed.length} draft(s)`);
-        }
-        setError(null);
-      } catch (err) {
-        console.error('Error loading drafts:', err);
-        const errMsg = 'Failed to load drafts';
-        setError(errMsg);
-        showError(errMsg);
-      } finally {
-        setLoading(false);
+    try {
+      setLoading(true);
+      const userEmail = (user as any)?.email;
+      if (!userEmail) { setError('User email not found'); setLoading(false); return; }
+      const stored = localStorage.getItem(`geowaste_drafts_${userEmail}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setDrafts(Array.isArray(parsed) ? parsed : []);
+        showInfo(`Loaded ${parsed.length} draft(s)`);
       }
-    };
-
-    loadDrafts();
+      setError(null);
+    } catch {
+      setError('Failed to load collections');
+      showError('Failed to load collections');
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
-  const handleDeleteDraft = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this draft?')) {
-      try {
-        const userEmail = (user as any)?.email;
-        const key = `geowaste_drafts_${userEmail}`;
-        const updated = drafts.filter((d) => d.id !== id);
-        localStorage.setItem(key, JSON.stringify(updated));
-        setDrafts(updated);
-        showSuccess('Draft deleted ✓');
-      } catch (err) {
-        const errMsg = 'Failed to delete draft';
-        setError(errMsg);
-        showError(errMsg);
-      }
+  const handleDelete = (id: string) => {
+    if (!window.confirm('Delete this survey?')) return;
+    try {
+      const userEmail = (user as any)?.email;
+      const updated = drafts.filter(d => d.id !== id);
+      localStorage.setItem(`geowaste_drafts_${userEmail}`, JSON.stringify(updated));
+      setDrafts(updated);
+      showSuccess('Survey deleted');
+    } catch {
+      showError('Failed to delete survey');
     }
   };
 
-  const handleSubmitDraft = async (draft: DraftForm) => {
+  const handleSubmit = async (draft: DraftForm) => {
     setSubmitting(draft.id);
     try {
       const userEmail = (user as any)?.email;
-      // Submit the draft form via API with enumerator_email
       await wasteApiService.submitWasteSite({
         ...(draft.formData as Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'>),
         enumerator_email: userEmail || undefined,
       });
-
-      // Mark as submitted in localStorage
-      const updated = drafts.map((d) =>
-        d.id === draft.id ? { ...d, status: 'submitted' as const } : d
-      );
-      const key = `geowaste_drafts_${userEmail}`;
-      localStorage.setItem(key, JSON.stringify(updated));
+      const updated = drafts.map(d => d.id === draft.id ? { ...d, status: 'submitted' as const } : d);
+      localStorage.setItem(`geowaste_drafts_${userEmail}`, JSON.stringify(updated));
       setDrafts(updated);
-
-      showSuccess('Form submitted successfully! ✓');
+      showSuccess('Survey submitted successfully');
     } catch (err: any) {
-      const errMsg = err.message || 'Failed to submit form';
-      setError(errMsg);
-      showError(errMsg);
+      showError(err.message || 'Submission failed');
     } finally {
       setSubmitting(null);
     }
   };
 
-  const filteredDrafts = drafts.filter((d) => {
+  const counts = {
+    draft:     drafts.filter(d => d.status === 'draft').length,
+    submitted: drafts.filter(d => d.status === 'submitted').length,
+    all:       drafts.length,
+  };
+
+  const filtered = drafts.filter(d => {
     if (filter === 'draft') return d.status === 'draft';
     if (filter === 'submitted') return d.status === 'submitted';
     return true;
   });
 
-  if (loading) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex items-center justify-center min-h-[300px]">
-        <div className="text-center">
-          <div className="w-10 h-10 border-3 border-[#CFF4D2] border-t-[#329D9C] rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-sm text-[#205072]">Loading collections...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-      {/* Header Section */}
-      <div className="mb-8">
-        <h2 className="text-2xl sm:text-3xl font-bold text-[#205072] mb-1">My Collections</h2>
-        <p className="text-sm text-gray-600">Manage your saved drafts and submitted forms</p>
-      </div>
+    <>
+      <style>{css}</style>
+      <div className="col-root">
 
-      {/* Filter Tabs */}
-      <div className="flex gap-2 sm:gap-3 mb-8 flex-wrap">
-        {(['draft', 'submitted', 'all'] as const).map((tab) => {
-          const count = drafts.filter(d => {
-            if (tab === 'draft') return d.status === 'draft';
-            if (tab === 'submitted') return d.status === 'submitted';
-            return true;
-          }).length;
-          
-          return (
-            <button
-              key={tab}
-              onClick={() => setFilter(tab as 'draft' | 'submitted' | 'all')}
-              className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-all ${
-                filter === tab
-                  ? 'bg-[#329D9C] text-white'
-                  : 'bg-gray-100 text-[#205072] hover:bg-gray-200'
-              }`}
-            >
-              <span className="capitalize">{tab}</span> ({count})
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Error Alert */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm">
-          {error}
-        </div>
-      )}
-
-      {/* Content */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="w-10 h-10 border-3 border-[#CFF4D2] border-t-[#329D9C] rounded-full animate-spin mx-auto mb-3"></div>
-            <p className="text-sm text-[#205072]">Loading collections...</p>
-          </div>
-        </div>
-      ) : filteredDrafts.length === 0 ? (
-        <div className="py-12 text-center">
-          <p className="text-sm text-gray-600 mb-4">
-            {filter === 'draft'
-              ? 'No draft surveys yet. Start a new survey to create your first draft.'
-              : filter === 'submitted'
-                ? 'No submitted surveys yet.'
-                : 'No collections yet.'}
-          </p>
-          <button
-            onClick={onStartNew}
-            className="px-4 py-2 bg-[#329D9C] hover:bg-[#205072] text-white text-sm font-medium rounded-lg transition-all"
-          >
-            Start New Survey
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filteredDrafts.map((draft) => (
-            <div key={draft.id} className="border-b border-gray-200 py-4 last:border-b-0">
-              {/* Survey Info */}
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                      draft.status === 'draft'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-green-100 text-green-700'
-                    }`}>
-                      {draft.status === 'draft' ? 'Draft' : 'Submitted'}
-                    </span>
-                  </div>
-                  <p className="text-sm font-semibold text-[#205072]">
-                    Survey #{draft.id.slice(0, 8).toUpperCase()}
-                  </p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    {draft.ward} • {new Date(draft.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2 flex-wrap">
-                {draft.status === 'draft' && (
-                  <>
-                    <button
-                      onClick={() => onEditDraft?.(draft.id, draft.formData)}
-                      className="px-3 py-1.5 text-xs sm:text-sm bg-[#329D9C] hover:bg-[#205072] text-white font-medium rounded transition-all"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleSubmitDraft(draft)}
-                      disabled={submitting === draft.id}
-                      className="px-3 py-1.5 text-xs sm:text-sm bg-[#56C596] hover:bg-[#329D9C] text-white font-medium rounded transition-all disabled:opacity-50"
-                    >
-                      {submitting === draft.id ? 'Submitting...' : 'Submit'}
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={() => handleDeleteDraft(draft.id)}
-                  className="px-3 py-1.5 text-xs sm:text-sm bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded transition-all"
-                >
-                  Delete
-                </button>
-              </div>
+        {/* ── Sticky header ── */}
+        <header className="col-header">
+          <div className="col-header-inner">
+            <div>
+              <p className="col-eyebrow">My Work</p>
+              <h1 className="col-title">Collections</h1>
             </div>
-          ))}
-        </div>
-      )}
-    </div>
+            <button className="col-new-btn" onClick={onStartNew}>
+              <Plus size={14} /> New Survey
+            </button>
+          </div>
+          <div className="col-progress-rail">
+            <div className="col-progress-fill" style={{ width: '100%' }} />
+          </div>
+        </header>
+
+        {/* ── Body ── */}
+        <main className="col-body">
+
+          {/* Section head */}
+          <section className="col-section-head">
+            <h2 className="col-section-title">Surveys</h2>
+            <p className="col-section-sub">Manage your saved drafts and submitted forms</p>
+          </section>
+
+          <hr className="col-divider" />
+
+          {/* Filter pills */}
+          <div className="col-filter-row">
+            <SlidersHorizontal size={13} className="col-filter-icon" />
+            {(['draft', 'submitted', 'all'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setFilter(tab)}
+                className={`col-filter-pill ${filter === tab ? 'col-filter-pill--on' : ''}`}
+              >
+                {tab === 'draft' ? 'Drafts' : tab === 'submitted' ? 'Submitted' : 'All'}
+                <span className="col-filter-count">{counts[tab]}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="col-error"><AlertTriangle size={14} />{error}</div>
+          )}
+
+          {/* Loading */}
+          {loading ? (
+            <div className="col-loading">
+              <Loader2 size={20} className="col-spin" />
+              <p>Loading collections…</p>
+            </div>
+          ) : filtered.length === 0 ? (
+
+            /* Empty state */
+            <div className="col-empty">
+              <FileText size={28} className="col-empty-icon" />
+              <p className="col-empty-text">
+                {filter === 'draft'
+                  ? 'No draft surveys yet'
+                  : filter === 'submitted'
+                  ? 'No submitted surveys yet'
+                  : 'No surveys yet'}
+              </p>
+              <p className="col-empty-sub">
+                {filter === 'draft'
+                  ? 'Start a new survey to create your first draft.'
+                  : 'Surveys will appear here once you submit them.'}
+              </p>
+              {filter !== 'submitted' && (
+                <button className="col-start-btn" onClick={onStartNew}>
+                  <Plus size={14} /> Start New Survey
+                </button>
+              )}
+            </div>
+
+          ) : (
+
+            /* Survey list */
+            <div className="col-list">
+              {filtered.map((draft, i) => {
+                const isSubmitting = submitting === draft.id;
+                const isDraft = draft.status === 'draft';
+                return (
+                  <div key={draft.id} className="col-item" style={{ animationDelay: `${i * 50}ms` }}>
+
+                    {/* Left: status icon */}
+                    <div className={`col-item-icon ${isDraft ? 'col-item-icon--draft' : 'col-item-icon--done'}`}>
+                      {isDraft
+                        ? <Clock size={14} />
+                        : <CheckCircle2 size={14} />
+                      }
+                    </div>
+
+                    {/* Middle: meta */}
+                    <div className="col-item-body">
+                      <p className="col-item-id">Survey #{draft.id.slice(0, 8).toUpperCase()}</p>
+                      <p className="col-item-meta">
+                        {draft.ward} · {new Date(draft.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+
+                    {/* Right: actions */}
+                    <div className="col-item-actions">
+                      {isDraft && (
+                        <>
+                          <button
+                            className="col-action-btn col-action-btn--edit"
+                            onClick={() => onEditDraft?.(draft.id, draft.formData)}
+                            title="Edit draft"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            className="col-action-btn col-action-btn--submit"
+                            onClick={() => handleSubmit(draft)}
+                            disabled={isSubmitting}
+                            title="Submit"
+                          >
+                            {isSubmitting
+                              ? <Loader2 size={13} className="col-spin" />
+                              : <CheckCircle2 size={13} />
+                            }
+                          </button>
+                        </>
+                      )}
+                      <button
+                        className="col-action-btn col-action-btn--delete"
+                        onClick={() => handleDelete(draft.id)}
+                        disabled={isSubmitting}
+                        title="Delete"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <p className="col-footer">GeoWaste Kilifi v1.0</p>
+        </main>
+      </div>
+    </>
   );
 };
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --teal:   #329D9C;
+    --teal-d: #205072;
+    --teal-l: #56C596;
+    --mint:   #7BE495;
+    --foam:   #CFF4D2;
+    --bg:     #f6fbf8;
+    --border: #e2ede8;
+    --text:   #1c3a2e;
+    --muted:  #7a9a8a;
+    --r:      10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  .col-root {
+    min-height: 100vh;
+    background: var(--bg);
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+  }
+
+  /* ── Header ── */
+  .col-header {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(246,251,248,0.94);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .col-header-inner {
+    max-width: 600px; margin: 0 auto;
+    padding: 16px 24px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .col-eyebrow {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--teal); margin-bottom: 3px;
+  }
+  .col-title {
+    font-size: 19px; font-weight: 600;
+    color: var(--teal-d); letter-spacing: -0.3px;
+  }
+  .col-new-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 20px;
+    border: 1.5px solid var(--teal);
+    background: var(--teal); color: white;
+    font-size: 12.5px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .col-new-btn:hover { background: var(--teal-d); border-color: var(--teal-d); }
+  .col-progress-rail {
+    max-width: 600px; margin: 0 auto;
+    height: 2px; background: var(--foam);
+  }
+  .col-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--teal), var(--teal-l));
+  }
+
+  /* ── Body ── */
+  .col-body {
+    max-width: 600px; margin: 0 auto;
+    padding: 36px 24px 80px;
+    display: flex; flex-direction: column; gap: 28px;
+  }
+
+  .col-section-head {}
+  .col-section-title {
+    font-size: 24px; font-weight: 600;
+    color: var(--teal-d); letter-spacing: -0.5px;
+    line-height: 1.2; margin-bottom: 6px;
+  }
+  .col-section-sub {
+    font-size: 14px; color: var(--muted); line-height: 1.5;
+  }
+  .col-divider { border: none; border-top: 1px solid var(--border); }
+
+  /* ── Filter row ── */
+  .col-filter-row {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .col-filter-icon { color: var(--muted); flex-shrink: 0; }
+  .col-filter-pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 20px;
+    border: 1.5px solid var(--border);
+    background: transparent; color: var(--muted);
+    font-size: 12.5px; font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .col-filter-pill:hover { border-color: var(--teal); color: var(--teal-d); }
+  .col-filter-pill--on {
+    background: var(--teal); border-color: var(--teal); color: white;
+  }
+  .col-filter-count {
+    font-size: 11px; font-weight: 600;
+    font-family: 'DM Mono', monospace;
+    opacity: 0.75;
+  }
+  .col-filter-pill--on .col-filter-count { opacity: 0.85; }
+
+  /* ── Error ── */
+  .col-error {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 500; color: #dc2626;
+  }
+
+  /* ── Loading ── */
+  .col-loading {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 10px; padding: 48px 0;
+    font-size: 13px; color: var(--muted);
+  }
+
+  /* ── Empty ── */
+  .col-empty {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 8px; padding: 56px 0; text-align: center;
+  }
+  .col-empty-icon { color: var(--muted); opacity: 0.3; margin-bottom: 4px; }
+  .col-empty-text { font-size: 16px; font-weight: 600; color: var(--teal-d); }
+  .col-empty-sub { font-size: 13px; color: var(--muted); max-width: 280px; line-height: 1.5; }
+  .col-start-btn {
+    display: flex; align-items: center; gap: 7px;
+    margin-top: 8px;
+    padding: 9px 20px; border-radius: var(--r);
+    border: 1.5px solid var(--teal);
+    background: var(--teal); color: white;
+    font-size: 13.5px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .col-start-btn:hover { background: var(--teal-d); border-color: var(--teal-d); }
+
+  /* ── Survey list ── */
+  .col-list {
+    display: flex; flex-direction: column; gap: 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  @keyframes col-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .col-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 15px 0; border-bottom: 1px solid var(--border);
+    animation: col-in 0.22s ease both;
+  }
+  .col-item:last-child { border-bottom: none; }
+
+  /* Status icon */
+  .col-item-icon {
+    width: 34px; height: 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .col-item-icon--draft {
+    background: rgba(50,157,156,0.07);
+    border: 1px solid rgba(50,157,156,0.15);
+    color: var(--teal);
+  }
+  .col-item-icon--done {
+    background: rgba(86,197,150,0.1);
+    border: 1px solid rgba(86,197,150,0.2);
+    color: var(--teal-l);
+  }
+
+  /* Meta */
+  .col-item-body { flex: 1; min-width: 0; }
+  .col-item-id {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    font-family: 'DM Mono', monospace; margin-bottom: 3px;
+  }
+  .col-item-meta { font-size: 12px; color: var(--muted); }
+
+  /* Actions */
+  .col-item-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .col-action-btn {
+    width: 32px; height: 32px; border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.15s;
+    color: var(--muted);
+  }
+  .col-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .col-action-btn--edit:hover { border-color: var(--teal); color: var(--teal); background: rgba(50,157,156,0.05); }
+  .col-action-btn--submit:hover { border-color: var(--teal-l); color: var(--teal-l); background: rgba(86,197,150,0.07); }
+  .col-action-btn--delete:hover { border-color: #fca5a5; color: #dc2626; background: #fff5f5; }
+
+  /* ── Footer ── */
+  .col-footer {
+    text-align: center; font-size: 11px; color: var(--muted);
+    font-weight: 500; letter-spacing: 0.3px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* ── Spinner ── */
+  .col-spin { animation: _spin 0.7s linear infinite; }
+  @keyframes _spin { to { transform: rotate(360deg); } }
+`;
 
 export default CollectionsPage;

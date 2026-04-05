@@ -23,19 +23,19 @@ const corsOptions = {
   origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) {
-      console.log('✅ No origin header (mobile/API request) - allowing');
+      console.log(' No origin header (mobile/API request) - allowing');
       return callback(null, true);
     }
     
     // Always allow localhost origins for local development
     if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-      console.log(`✅ Local development: allowing ${origin}`);
+      console.log(` Local development: allowing ${origin}`);
       return callback(null, true);
     }
     
     // In production, check against configured CORS_ORIGIN
     if (origin === corsOrigin) {
-      console.log(`✅ Production: allowing ${origin}`);
+      console.log(` Production: allowing ${origin}`);
       return callback(null, true);
     }
     
