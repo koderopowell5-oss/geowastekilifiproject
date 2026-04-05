@@ -195,12 +195,8 @@ router.get('/waste', async (req: Request, res: Response) => {
       message: 'Waste sites retrieved successfully',
       data: {
         records,
-        pagination: {
-          total,
-          limit,
-          offset,
-          pages: Math.ceil(total / limit),
-        },
+        total,
+        pages: Math.ceil(total / limit),
       },
     } as ApiResponse);
   } catch (error: any) {
