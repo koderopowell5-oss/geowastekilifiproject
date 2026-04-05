@@ -168,6 +168,17 @@ class WasteApiService {
   }
 
   /**
+   * Get all enumerators
+   */
+  async getAllEnumerators(): Promise<any[]> {
+    const response = await this.api.get<ApiResponse<any>>('/auth/enumerators');
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to fetch enumerators');
+    }
+    return response.data.data || [];
+  }
+
+  /**
    * Check API health
    */
   async checkHealth(): Promise<boolean> {

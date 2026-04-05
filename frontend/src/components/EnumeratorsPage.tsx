@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Enumerator } from '../context/AuthContext';
 import { WasteSiteRecord } from '../../../types';
+import { wasteApiService } from '../services/wasteApi';
 import {
   Mail, Phone, MapIcon, MapPin,
-  ChevronLeft, ArrowRight, Calendar, Layers, Home,
+  ChevronLeft, ArrowRight, Calendar, Layers, Home, AlertCircle, Loader2,
 } from 'lucide-react';
 
 interface EnumeratorsPageProps {
@@ -19,7 +20,8 @@ const ENUMERATORS: Enumerator[] = [
 // ─── Utilities ──────────────────────────────────────────────────────────────
 
 function getEnumeratorStats(enumerator: Enumerator, sites: WasteSiteRecord[]) {
-  const records = sites.filter((_, idx) => idx % ENUMERATORS.length === ENUMERATORS.indexOf(enumerator));
+  // Filter records by enumerator email
+  const records = sites.filter((site) => site.enumerator_email === enumerator.email);
   return {
     totalCollections: records.length,
     wardsServed: new Set(records.map(s => s.ward)).size,
@@ -220,8 +222,47 @@ const EnumeratorDetailPage: React.FC<{
 
 export const EnumeratorsPage: React.FC<EnumeratorsPageProps> = ({ sites }) => {
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [enumerators, setEnumerators] = useState<Enumerator[]>(ENUMERATORS);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const selected = ENUMERATORS.find(e => e.id === detailId);
+  // Fetch enumerators from API
+  useEffect(() => {
+    const fetchEnumerators = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await wasteApiService.getAllEnumerators();
+        
+        // Map API response to Enumerator interface
+        const mappedEnumerators: Enumerator[] = data.map((e: any) => ({
+          id: e.id?.toString() || '',
+          name: e.name || '',
+          email: e.email || '',
+          ward: e.ward || '',
+          phone: e.phone || '',
+        }));
+
+        if (mappedEnumerators.length > 0) {
+          setEnumerators(mappedEnumerators);
+        } else {
+          // Use mock data if no enumerators found
+          setEnumerators(ENUMERATORS);
+        }
+      } catch (err: any) {
+        console.error('Failed to fetch enumerators:', err.message);
+        setError(err.message || 'Failed to fetch enumerators');
+        // Fallback to mock data
+        setEnumerators(ENUMERATORS);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchEnumerators();
+  }, []);
+
+  const selected = enumerators.find(e => e.id === detailId);
   if (selected) {
     return (
       <EnumeratorDetailPage
@@ -259,77 +300,105 @@ export const EnumeratorsPage: React.FC<EnumeratorsPageProps> = ({ sites }) => {
           />
           <div className="en-hero-overlay">
             <p className="en-hero-label">GeoWaste Kilifi</p>
-            <p className="en-hero-sub">{ENUMERATORS.length} active field enumerators</p>
+            <p className="en-hero-sub">{enumerators.length} active field enumerators</p>
           </div>
         </div>
 
         <main className="en-body">
 
-          <section>
-            <h2 className="en-section-title">Field Team</h2>
-            <p className="en-section-sub">Tap an enumerator to view their collection details</p>
-          </section>
-
-          <hr className="en-divider" />
-
-          {/* ── Enumerator cards ── */}
-          <div className="en-list">
-            {ENUMERATORS.map((enumerator, i) => {
-              const stats = getEnumeratorStats(enumerator, sites);
-              return (
-                <button
-                  key={enumerator.id}
-                  className="en-card"
-                  style={{ animationDelay: `${i * 60}ms` }}
-                  onClick={() => setDetailId(enumerator.id)}
-                >
-                  <div className="en-card-left">
-                    <div className="en-avatar-sm">{initials(enumerator.name)}</div>
-                    <div className="en-card-meta">
-                      <p className="en-card-name">{enumerator.name}</p>
-                      <div className="en-card-contact">
-                        <span className="en-contact-item">
-                          <MapPin size={10} /> {enumerator.ward}
-                        </span>
-                        <span className="en-contact-item">
-                          <Phone size={10} /> {enumerator.phone}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="en-card-right">
-                    <div className="en-card-stat">
-                      <span className="en-card-stat-num">{stats.totalCollections}</span>
-                      <span className="en-card-stat-label">sites</span>
-                    </div>
-                    <div className="en-card-arrow"><ArrowRight size={14} /></div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          <hr className="en-divider" />
-
-          {/* ── Summary totals ── */}
-          <section>
-            <h2 className="en-section-title" style={{ fontSize: '16px', marginBottom: '16px' }}>Team Overview</h2>
-          </section>
-
-          <div className="en-overview-grid">
-            {[
-              { label: 'Total Collections', value: sites.length, color: 'var(--teal-d)' },
-              { label: 'Active Wards',      value: new Set(sites.map(s => s.ward)).size, color: 'var(--teal)' },
-              { label: 'Settlement Types',  value: new Set(sites.map(s => s.settlement_type)).size, color: 'var(--teal-l)' },
-            ].map(s => (
-              <div key={s.label} className="en-overview-cell">
-                <span className="en-overview-num" style={{ color: s.color }}>{s.value}</span>
-                <span className="en-overview-label">{s.label}</span>
+          {/* ── Error state ── */}
+          {error && (
+            <div className="en-error-box">
+              <AlertCircle size={16} className="en-error-icon" />
+              <div>
+                <p className="en-error-title">Failed to load enumerators</p>
+                <p className="en-error-msg">{error}</p>
+                <p className="en-error-fallback" style={{ fontSize: '11px', marginTop: '6px', opacity: 0.7 }}>
+                  Showing cached data
+                </p>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
 
-          <p className="en-footer">GeoWaste Kilifi v1.0</p>
+          {/* ── Loading state ── */}
+          {isLoading && (
+            <div className="en-loading-box">
+              <Loader2 size={20} className="en-loading-spinner" />
+              <p className="en-loading-text">Loading enumerators...</p>
+            </div>
+          )}
+
+          {/* ── Content ── */}
+          {!isLoading && (
+            <>
+              <section>
+                <h2 className="en-section-title">Field Team</h2>
+                <p className="en-section-sub">Tap an enumerator to view their collection details</p>
+              </section>
+
+              <hr className="en-divider" />
+
+              {/* ── Enumerator cards ── */}
+              <div className="en-list">
+                {enumerators.map((enumerator, i) => {
+                  const stats = getEnumeratorStats(enumerator, sites);
+                  return (
+                    <button
+                      key={enumerator.id}
+                      className="en-card"
+                      style={{ animationDelay: `${i * 60}ms` }}
+                      onClick={() => setDetailId(enumerator.id)}
+                    >
+                      <div className="en-card-left">
+                        <div className="en-avatar-sm">{initials(enumerator.name)}</div>
+                        <div className="en-card-meta">
+                          <p className="en-card-name">{enumerator.name}</p>
+                          <div className="en-card-contact">
+                            <span className="en-contact-item">
+                              <MapPin size={10} /> {enumerator.ward}
+                            </span>
+                            <span className="en-contact-item">
+                              <Phone size={10} /> {enumerator.phone}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="en-card-right">
+                        <div className="en-card-stat">
+                          <span className="en-card-stat-num">{stats.totalCollections}</span>
+                          <span className="en-card-stat-label">sites</span>
+                        </div>
+                        <div className="en-card-arrow"><ArrowRight size={14} /></div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <hr className="en-divider" />
+
+              {/* ── Summary totals ── */}
+              <section>
+                <h2 className="en-section-title" style={{ fontSize: '16px', marginBottom: '16px' }}>Team Overview</h2>
+              </section>
+
+              <div className="en-overview-grid">
+                {[
+                  { label: 'Total Collections', value: sites.length, color: 'var(--teal-d)' },
+                  { label: 'Active Wards',      value: new Set(sites.map(s => s.ward)).size, color: 'var(--teal)' },
+                  { label: 'Settlement Types',  value: new Set(sites.map(s => s.settlement_type)).size, color: 'var(--teal-l)' },
+                ].map(s => (
+                  <div key={s.label} className="en-overview-cell">
+                    <span className="en-overview-num" style={{ color: s.color }}>{s.value}</span>
+                    <span className="en-overview-label">{s.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              <p className="en-footer">GeoWaste Kilifi v1.0</p>
+            </>
+          )}
+
         </main>
       </div>
     </>
@@ -440,6 +509,38 @@ const css = `
     font-size: 14px; color: var(--muted); line-height: 1.5;
   }
   .en-divider { border: none; border-top: 1px solid var(--border); }
+
+  /* ── Error state ── */
+  .en-error-box {
+    display: flex; gap: 12px;
+    padding: 14px 16px; border-radius: var(--r);
+    background: rgba(220, 38, 38, 0.04);
+    border: 1px solid rgba(220, 38, 38, 0.2);
+  }
+  .en-error-icon { color: #dc2626; margin-top: 2px; flex-shrink: 0; }
+  .en-error-title {
+    font-size: 13px; font-weight: 600; color: #dc2626;
+    margin-bottom: 2px;
+  }
+  .en-error-msg {
+    font-size: 12px; color: #7a5252; line-height: 1.4;
+  }
+  .en-error-fallback {
+    font-size: 11px; color: #7a5252;
+  }
+
+  /* ── Loading state ── */
+  .en-loading-box {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 40px 24px;
+  }
+  .en-loading-spinner {
+    color: var(--teal); animation: spin 1s linear infinite;
+  }
+  .en-loading-text {
+    font-size: 13px; color: var(--muted); font-weight: 500;
+  }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
   /* ── Enumerator card list ── */
   .en-list { display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--border); }
