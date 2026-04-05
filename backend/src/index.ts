@@ -27,20 +27,20 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    // In development, allow any localhost origin
-    if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
-      console.log(`✅ Development mode: allowing localhost request from ${origin}`);
+    // Always allow localhost origins for local development
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      console.log(`✅ Local development: allowing ${origin}`);
       return callback(null, true);
     }
     
     // In production, check against configured CORS_ORIGIN
     if (origin === corsOrigin) {
-      console.log(`✅ Allowed: ${origin}`);
+      console.log(`✅ Production: allowing ${origin}`);
       return callback(null, true);
     }
     
     // Log denied requests for debugging
-    console.warn(`❌ CORS blocked: ${origin} (allowed: ${corsOrigin})`);
+    console.warn(`❌ CORS blocked: ${origin} (allowed: ${corsOrigin}, localhost)`);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
