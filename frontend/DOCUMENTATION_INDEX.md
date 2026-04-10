@@ -1,12 +1,12 @@
-# 📚 Notification System - Documentation Index
+# Notification System - Documentation Index
 
 Welcome to the GeoWaste Kilifi Notification System! This comprehensive suite of components provides toast notifications, success cards, and fail cards to enhance your user experience.
 
 ---
 
-## 📖 Documentation Files
+## Documentation Files
 
-### 🚀 Get Started Here
+### Get Started Here
 1. **README_NOTIFICATIONS.md** ← START HERE (2 min read)
    - Quick overview
    - Basic usage
@@ -17,7 +17,7 @@ Welcome to the GeoWaste Kilifi Notification System! This comprehensive suite of 
    - Real-world patterns
    - Common use cases
 
-### 📋 Complete References
+### Complete References
 3. **NOTIFICATIONS_GUIDE.md** (Comprehensive)
    - Full API reference
    - All features explained
@@ -59,7 +59,7 @@ Welcome to the GeoWaste Kilifi Notification System! This comprehensive suite of 
 
 ---
 
-## 🎯 Quick Navigation
+## Quick Navigation
 
 ### I want to...
 

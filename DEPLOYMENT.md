@@ -1,4 +1,4 @@
-# 🚀 Deployment Guide
+# Deployment Guide
 
 Complete guide for deploying GeoWaste Kilifi to production environments.
 

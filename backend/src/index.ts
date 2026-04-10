@@ -16,8 +16,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // CORS configuration
 const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3001';
-console.log(`🔐 CORS Origin configured for: ${corsOrigin}`);
-console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log(`CORS Origin configured for: ${corsOrigin}`);
+console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 
 const corsOptions = {
   origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
@@ -89,13 +89,13 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 // Start server
 app.listen(PORT, async () => {
-  console.log(`\n🚀 Backend server running on http://localhost:${PORT}\n`);
+  console.log(`\nBackend server running on http://localhost:${PORT}\n`);
   
   try {
     await initializeDatabase();
-    console.log('\n✓ Database initialized and ready\n');
+    console.log('\nDatabase initialized and ready\n');
   } catch (err: any) {
-    console.error('\n✗ Database connection failed:', err.message);
+    console.error('\nDatabase connection failed:', err.message);
     console.error('The server is running but database operations will fail.');
     console.error('Please ensure:');
     console.error('  1. PostgreSQL is installed and running');

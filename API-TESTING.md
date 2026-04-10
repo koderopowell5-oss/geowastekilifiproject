@@ -1,4 +1,4 @@
-# 📋 API Testing Guide
+# API Testing Guide
 
 Quick reference for testing the GeoWaste Kilifi API endpoints.
 
