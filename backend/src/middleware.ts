@@ -3,6 +3,9 @@ import { pool } from './db';
 import { ApiResponse } from './types';
 
 export interface AuthRequest extends Request {
+  params: any;
+  body: any;
+  headers: any;
   user?: {
     id: number;
     email: string;
