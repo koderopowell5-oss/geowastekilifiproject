@@ -90,13 +90,13 @@ export class WasteService {
     const flagReason = isFlagged ? issues[0] || 'Auto-flagged for low quality' : null;
 
     const values = [
-      latitude, longitude, ward, settlement_type, household_size,
+      String(latitude), String(longitude), ward, settlement_type, household_size,
       waste_types, waste_quantity, waste_separation,
       disposal_method, distance_to_site, collection_frequency,
       road_access, distance_to_road,
       waste_near_home, distance_to_waste, impacts, nearby_features,
       recommended_distance, preferred_location,
-      distance_weight, water_weight, road_weight, slope_weight, landuse_weight,
+      String(distance_weight), String(water_weight), String(road_weight), String(slope_weight), String(landuse_weight),
       terrain, flooding,
       policy_awareness, support_new_site, preferred_management,
       challenges, suggested_location,
@@ -236,7 +236,7 @@ export class WasteService {
       ORDER BY created_at DESC;
     `;
 
-    const result = await query(sql, [minLat, maxLat, minLng, maxLng]);
+    const result = await query(sql, [String(minLat), String(maxLat), String(minLng), String(maxLng)]);
     return result.rows;
   }
 
