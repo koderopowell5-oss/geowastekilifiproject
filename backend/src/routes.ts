@@ -1,9 +1,29 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import { WasteService } from './service';
 import { AuthService } from './authService';
+import { cloudinaryUploadService } from './cloudinaryService';
 import { ApiResponse, WasteSiteRecord } from './types';
 
 const router = Router();
+
+// Configure multer for file uploads
+const storage = multer.memoryStorage(); // Store files in memory
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === 'image') {
+      if (['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid image format'));
+      }
+    } else {
+      cb(null, true);
+    }
+  },
+});
 
 /**
  * POST /api/auth/signup
@@ -460,4 +480,46 @@ router.delete('/drafts/:enumerator_email', async (req: Request, res: Response) =
   }
 });
 
+/**
+ * POST /api/upload/image
+ * Upload image to Cloudinary
+ */
+router.post('/upload/image', upload.single('image'), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided',
+        error: 'image field is required',
+      } as ApiResponse);
+    }
+
+    // Validate image
+    const validation = cloudinaryUploadService.validateImageFile(req.file.buffer, req.file.originalname);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.error || 'Invalid image file',
+      } as ApiResponse);
+    }
+
+    // Upload to Cloudinary
+    const imageUrl = await cloudinaryUploadService.uploadImage(req.file.buffer, req.file.originalname);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Image uploaded successfully',
+      data: { image_url: imageUrl },
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error uploading image:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Image upload failed',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
 export default router;
+

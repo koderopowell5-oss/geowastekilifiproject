@@ -192,6 +192,37 @@ class WasteApiService {
   }
 
   /**
+   * Upload image to backend for Cloudinary storage
+   */
+  async uploadImage(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const response = await axios.post<ApiResponse<{ image_url: string }>>(
+        `${API_BASE_URL}/upload/image`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to upload image');
+      }
+
+      return response.data.data?.image_url || '';
+    } catch (error: any) {
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Check API health
    */
   async checkHealth(): Promise<boolean> {

@@ -1,55 +1,42 @@
 /**
- * Cloudinary Image Upload Service
- * Handles image uploads to Cloudinary for survey records
+ * Cloudinary Image Upload Service (Frontend)
+ * Handles image uploads to backend for secure Cloudinary storage
  */
 
 export class CloudinaryService {
-  private cloudName: string = process.env.REACT_APP_CLOUDINARY_CLOUD_NAME || '';
-  private uploadPreset: string = process.env.REACT_APP_CLOUDINARY_UPLOAD_PRESET || '';
-
-  constructor() {
-    if (!this.cloudName || !this.uploadPreset) {
-      console.warn('Cloudinary configuration missing. Image uploads will not work.');
-    }
-  }
-
   /**
-   * Upload image to Cloudinary
+   * Upload image via backend to Cloudinary
    * @param file - Image file to upload
    * @param onProgress - Callback for upload progress
    * @returns Promise with uploaded image URL
    */
   async uploadImage(file: File, onProgress?: (progress: number) => void): Promise<string> {
-    if (!this.cloudName || !this.uploadPreset) {
-      throw new Error('Cloudinary is not configured. Please set REACT_APP_CLOUDINARY_CLOUD_NAME and REACT_APP_CLOUDINARY_UPLOAD_PRESET environment variables.');
-    }
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', this.uploadPreset);
-    formData.append('cloud_name', this.cloudName);
-
     try {
-      const xhr = new XMLHttpRequest();
+      // Track progress using XMLHttpRequest for better control
+      return await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
 
-      // Track upload progress
-      if (onProgress) {
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const progress = Math.round((e.loaded / e.total) * 100);
-            onProgress(progress);
-          }
-        });
-      }
+        // Track upload progress
+        if (onProgress) {
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const progress = Math.round((e.loaded / e.total) * 100);
+              onProgress(progress);
+            }
+          });
+        }
 
-      return new Promise((resolve, reject) => {
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               const response = JSON.parse(xhr.responseText);
-              resolve(response.secure_url);
+              if (response.success && response.data?.image_url) {
+                resolve(response.data.image_url);
+              } else {
+                reject(new Error(response.message || 'Invalid response from server'));
+              }
             } catch (e) {
-              reject(new Error('Invalid response from Cloudinary'));
+              reject(new Error('Failed to parse server response'));
             }
           } else {
             reject(new Error(`Upload failed with status ${xhr.status}`));
@@ -64,7 +51,11 @@ export class CloudinaryService {
           reject(new Error('Upload aborted'));
         };
 
-        xhr.open('POST', `https://api.cloudinary.com/v1_1/${this.cloudName}/image/upload`);
+        const formData = new FormData();
+        formData.append('image', file);
+
+        const apiUrl = process.env.REACT_APP_API_URL || 'https://geowastekilifiproject.onrender.com/api';
+        xhr.open('POST', `${apiUrl}/upload/image`);
         xhr.send(formData);
       });
     } catch (error: any) {
