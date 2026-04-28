@@ -8,14 +8,38 @@ import FormData from 'form-data';
 import { Readable } from 'stream';
 
 export class CloudinaryUploadService {
-  private cloudName: string = process.env.CLOUDINARY_CLOUD_NAME || '';
-  private apiKey: string = process.env.CLOUDINARY_API_KEY || '';
-  private apiSecret: string = process.env.CLOUDINARY_API_SECRET || '';
+  private cloudName: string = '';
+  private apiKey: string = '';
+  private apiSecret: string = '';
 
   constructor() {
+    // Parse CLOUDINARY_URL format: cloudinary://api_key:api_secret@cloud_name
+    const cloudinaryUrl = process.env.CLOUDINARY_URL;
+    
+    if (cloudinaryUrl) {
+      try {
+        const urlMatch = cloudinaryUrl.match(/cloudinary:\/\/([^:]+):([^@]+)@(.+)/);
+        if (urlMatch) {
+          this.apiKey = urlMatch[1];
+          this.apiSecret = urlMatch[2];
+          this.cloudName = urlMatch[3];
+          console.log('✓ Cloudinary configured via CLOUDINARY_URL');
+        } else {
+          throw new Error('Invalid CLOUDINARY_URL format');
+        }
+      } catch (error) {
+        console.error('❌ Error parsing CLOUDINARY_URL:', error);
+      }
+    } else {
+      // Fallback to individual environment variables
+      this.cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
+      this.apiKey = process.env.CLOUDINARY_API_KEY || '';
+      this.apiSecret = process.env.CLOUDINARY_API_SECRET || '';
+    }
+
     if (!this.cloudName || !this.apiKey || !this.apiSecret) {
       console.warn('⚠️ Cloudinary is not fully configured in backend. Image uploads will not work.');
-      console.warn('   Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in .env');
+      console.warn('   Set either CLOUDINARY_URL or individual variables (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)');
     }
   }
 
