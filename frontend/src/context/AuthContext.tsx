@@ -43,7 +43,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         setUser(JSON.parse(storedUser));
       } catch (err) {
-        console.error('Failed to parse stored user:', err);
         localStorage.removeItem('auth_user');
       }
     }
@@ -54,9 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       // Call backend API for login
-      console.log('Attempting login for:', email);
       const response = await wasteApiService.loginEnumerator(email, password);
-      console.log('Login successful:', response);
       
       const enumerator: Enumerator = {
         id: response.id,
@@ -69,7 +66,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(enumerator);
       localStorage.setItem('auth_user', JSON.stringify(enumerator));
     } catch (error: any) {
-      console.error('Login error caught:', error.message);
       throw new Error(error.message || 'Login failed');
     } finally {
       setIsLoading(false);

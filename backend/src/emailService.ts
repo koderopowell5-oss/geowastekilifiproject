@@ -38,10 +38,10 @@ export class EmailService {
         html,
       });
 
-      console.log(`✓ Email sent to ${to}: ${info.messageId}`);
+      console.log(`Email sent to ${to}: ${info.messageId}`);
       return true;
     } catch (error: any) {
-      console.error(`✗ Failed to send email to ${to}:`, error.message);
+      console.error(`Failed to send email to ${to}:`, error.message);
       return false;
     }
   }

@@ -23,23 +23,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup, onNavi
 
     if (!email || !password) {
       const msg = 'Please enter both email and password';
-      console.log('Validation error:', msg);
       setError(msg);
       showError(msg);
       return;
     }
 
     try {
-      console.log('Starting login...');
       await login(email, password);
-      console.log('Login succeeded!');
-      showSuccess(`Welcome back! 👋`);
+      showSuccess('Welcome back!');
     } catch (err: any) {
       const errMsg = err.message || 'Login failed. Please try again.';
-      console.error('Login error in component:', errMsg);
-      console.log('Calling showError with message:', errMsg);
       setError(errMsg);
-      showError(errMsg, 5000); // Show for 5 seconds
+      showError(errMsg, 5000);
     }
   };
 

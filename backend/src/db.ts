@@ -30,7 +30,6 @@ export const initializeDatabase = async (): Promise<void> => {
   try {
     // Test connection
     const result = await pool.query('SELECT NOW()');
-    console.log('✓ Database connection successful');
 
     // Check if enumerators table exists
     const tableCheck = await pool.query(
@@ -42,10 +41,7 @@ export const initializeDatabase = async (): Promise<void> => {
     );
 
     if (!tableCheck.rows[0].exists) {
-      console.warn('⚠ enumerators table not found. Please run: npm run db:init');
-      console.log('Database schema needs initialization.');
-    } else {
-      console.log('✓ enumerators table found');
+      console.warn('enumerators table not found. Please run: npm run db:init');
     }
 
     // Check if waste_sites table exists
@@ -58,12 +54,10 @@ export const initializeDatabase = async (): Promise<void> => {
     );
 
     if (!wasteTableCheck.rows[0].exists) {
-      console.warn('⚠ waste_sites table not found. Please run: npm run db:init');
-    } else {
-      console.log('✓ waste_sites table found');
+      console.warn('waste_sites table not found. Please run: npm run db:init');
     }
   } catch (err: any) {
-    console.error('✗ Database initialization failed:', err.message);
+    console.error('Database initialization failed:', err.message);
     console.error('Make sure PostgreSQL is running and credentials are correct in .env');
     throw err;
   }

@@ -30,7 +30,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const handleLogout = () => {
     logout();
-    showSuccess('Logged out successfully ✓');
+    showSuccess('Logged out successfully');
   };
 
   useEffect(() => {

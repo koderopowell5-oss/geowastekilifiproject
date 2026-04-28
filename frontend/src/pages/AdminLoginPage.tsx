@@ -29,7 +29,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onBackToLogin })
 
     try {
       await adminLogin(username, password);
-      showSuccess('Admin login successful! 🎉');
+      showSuccess('Admin login successful!');
     } catch (err: any) {
       const errMsg = err.message || 'Login failed. Please check your credentials.';
       setError(errMsg);

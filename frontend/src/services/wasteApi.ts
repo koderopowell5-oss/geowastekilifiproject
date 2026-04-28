@@ -27,7 +27,7 @@ class WasteApiService {
               config.headers.Authorization = `Bearer ${token}:${Date.now()}`;
             }
           } catch (e) {
-            console.error('Error parsing auth_user from localStorage:', e);
+            // Failed to parse stored auth - continue without auth
           }
         }
         return config;
@@ -47,8 +47,7 @@ class WasteApiService {
           // Don't log 404 errors from drafts endpoint - they're expected when no draft exists
           const isExpectedDraftsNotFound = errorCode === 404 && error.config?.url?.includes('/drafts/');
           if (!isExpectedDraftsNotFound) {
-            console.error('API Error:', error);
-            console.error(`HTTP ${errorCode}: ${errorMsg}`);
+            // Request failed - will be handled by error throwing below
           }
           
           if (errorCode === 401) {
@@ -64,11 +63,9 @@ class WasteApiService {
           }
         } else if (error.request) {
           // Request made but no response
-          console.error('No server response:', error.request);
-          throw new Error('No response from server. Please check your connection.');
+          throw new Error('No response from server. Please check your connection');
         } else {
           // Error in request setup
-          console.error('Request setup error:', error.message);
           throw new Error(error.message || 'An error occurred');
         }
       }

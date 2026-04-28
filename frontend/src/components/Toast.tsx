@@ -5,8 +5,6 @@ import { useNotification } from '../context/NotificationContext';
 export const ToastContainer: React.FC = () => {
   const { toasts, removeToast } = useNotification();
 
-  console.log('ToastContainer rendering with toasts:', toasts);
-
   return (
     <div className="fixed top-4 right-4 z-50 space-y-2 pointer-events-none">
       {toasts.map((toast) => (
@@ -28,8 +26,6 @@ interface ToastProps {
 
 const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
   const [isExiting, setIsExiting] = useState(false);
-
-  console.log('Toast component rendering:', toast);
 
   useEffect(() => {
     if (toast.duration && toast.duration > 0) {
