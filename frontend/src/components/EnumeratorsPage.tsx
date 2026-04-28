@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Enumerator } from '../context/AuthContext';
 import { WasteSiteRecord } from '../../../types';
 import { wasteApiService } from '../services/wasteApi';
+import { useNotification } from '../context/NotificationContext';
 import {
   Mail, Phone, MapIcon, MapPin,
-  ChevronLeft, ArrowRight, Calendar, Layers, Home, AlertCircle, Loader2,
+  ChevronLeft, ArrowRight, Calendar, Layers, Home, AlertCircle, Loader2, Trash2,
 } from 'lucide-react';
 
 interface EnumeratorsPageProps {
@@ -43,8 +44,27 @@ const EnumeratorDetailPage: React.FC<{
   enumerator: Enumerator;
   sites: WasteSiteRecord[];
   onBack: () => void;
-}> = ({ enumerator, sites, onBack }) => {
+  onDelete: (id: string) => Promise<void>;
+}> = ({ enumerator, sites, onBack, onDelete }) => {
+  const { showSuccess, showError } = useNotification();
+  const [isDeleting, setIsDeleting] = useState(false);
   const stats = getEnumeratorStats(enumerator, sites);
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Are you sure you want to remove ${enumerator.name}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      await onDelete(enumerator.id);
+      showSuccess(`${enumerator.name} has been removed successfully`);
+    } catch (error: any) {
+      showError(error.message || 'Failed to remove enumerator');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const lats = stats.records.map(s => Number(s.latitude)).filter(Boolean);
   const lngs = stats.records.map(s => Number(s.longitude)).filter(Boolean);
@@ -69,6 +89,14 @@ const EnumeratorDetailPage: React.FC<{
               <p className="en-eyebrow">Enumerator</p>
               <h1 className="en-title">{enumerator.name}</h1>
             </div>
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="en-delete-btn"
+              title="Remove enumerator"
+            >
+              <Trash2 size={14} />
+            </button>
           </div>
           <div className="en-progress-rail">
             <div className="en-progress-fill" style={{ width: '100%' }} />
@@ -221,6 +249,7 @@ const EnumeratorDetailPage: React.FC<{
 // ─── Main List Page ──────────────────────────────────────────────────────────
 
 export const EnumeratorsPage: React.FC<EnumeratorsPageProps> = ({ sites }) => {
+  const { showSuccess, showError } = useNotification();
   const [detailId, setDetailId] = useState<string | null>(null);
   const [enumerators, setEnumerators] = useState<Enumerator[]>(ENUMERATORS);
   const [isLoading, setIsLoading] = useState(true);
@@ -262,6 +291,17 @@ export const EnumeratorsPage: React.FC<EnumeratorsPageProps> = ({ sites }) => {
     fetchEnumerators();
   }, []);
 
+  const handleDeleteEnumerator = async (id: string) => {
+    try {
+      const idNum = parseInt(id, 10);
+      await wasteApiService.deleteEnumerator(idNum);
+      setEnumerators(prev => prev.filter(e => e.id !== id));
+      setDetailId(null);
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
   const selected = enumerators.find(e => e.id === detailId);
   if (selected) {
     return (
@@ -269,6 +309,7 @@ export const EnumeratorsPage: React.FC<EnumeratorsPageProps> = ({ sites }) => {
         enumerator={selected}
         sites={sites}
         onBack={() => setDetailId(null)}
+        onDelete={handleDeleteEnumerator}
       />
     );
   }
@@ -466,6 +507,17 @@ const css = `
     cursor: pointer; transition: all 0.15s; flex-shrink: 0;
   }
   .en-back-btn:hover { border-color: var(--teal-d); color: var(--teal-d); }
+  .en-delete-btn {
+    display: flex; align-items: center; justify-content: center;
+    padding: 6px 8px; border-radius: 20px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--muted); font-size: 12.5px; font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: all 0.15s; flex-shrink: 0; margin-left: auto;
+  }
+  .en-delete-btn:hover { border-color: #d63031; color: #d63031; }
+  .en-delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .en-eyebrow {
     font-size: 11px; font-weight: 500; letter-spacing: 0.6px;
     text-transform: uppercase; color: var(--teal); margin-bottom: 3px;

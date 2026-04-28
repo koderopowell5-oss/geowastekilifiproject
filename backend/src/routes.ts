@@ -119,6 +119,45 @@ router.get('/auth/enumerators', async (req: Request, res: Response) => {
 });
 
 /**
+ * DELETE /api/auth/enumerators/:id
+ * Delete an enumerator by ID
+ */
+router.delete('/auth/enumerators/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid enumerator ID',
+        error: 'ID must be a valid number',
+      } as ApiResponse);
+    }
+
+    const deleted = await AuthService.deleteEnumerator(Number(id));
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'Enumerator not found',
+      } as ApiResponse);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Enumerator deleted successfully',
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error deleting enumerator:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
  * POST /api/waste
  * Create a new waste site record
  */

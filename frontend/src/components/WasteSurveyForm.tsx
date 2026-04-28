@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { WasteSiteRecord } from '../../../types';
 import { GeolocationService } from '../services/geolocation';
 import { wasteApiService } from '../services/wasteApi';
-import { ChevronLeft, ChevronRight, CheckCircle2, X, Loader2, AlertTriangle } from 'lucide-react';
+import { cloudinaryService } from '../services/cloudinaryService';
+import { ChevronLeft, ChevronRight, CheckCircle2, X, Loader2, AlertTriangle, Upload } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
 import { SuccessCard } from './SuccessCard';
 import { FailCard } from './FailCard';
@@ -119,6 +120,10 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
   const [currentSection, setCurrentSection] = useState(0);
   const [animDir, setAnimDir] = useState<'fwd' | 'bck'>('fwd');
   const [animKey, setAnimKey] = useState(0);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
 
   const [formData, setFormData] = useState<Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'>>(
     initialData || {
@@ -184,6 +189,40 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
       const cur = Array.isArray(p[name]) ? (p[name] as string[]) : [];
       return { ...p, [name]: cur.includes(value) ? cur.filter(i => i !== value) : [...cur, value] };
     });
+  };
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file
+    const validation = cloudinaryService.validateImageFile(file);
+    if (!validation.valid) {
+      showError(validation.error || 'Invalid file');
+      return;
+    }
+
+    // Upload to Cloudinary
+    try {
+      setUploading(true);
+      setUploadProgress(0);
+      setImageFile(file);
+
+      const url = await cloudinaryService.uploadImage(file, (progress) => {
+        setUploadProgress(progress);
+      });
+
+      setImageUrl(url);
+      setFormData(p => ({ ...p, image_url: url }));
+      showSuccess('Image uploaded successfully!');
+    } catch (error: any) {
+      showError(error.message || 'Image upload failed');
+      setImageFile(null);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+      e.target.value = ''; // Reset input
+    }
   };
 
   const handleSubmit = async () => {
@@ -272,6 +311,7 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
     { title: 'Topography',    subtitle: 'Terrain and flood risk' },
     { title: 'Community',     subtitle: 'Attitudes and awareness' },
     { title: 'Notes',         subtitle: 'Challenges and suggestions' },
+    { title: 'Photo',         subtitle: 'Capture an image of the site (optional)' },
   ];
 
   const renderSection = () => {
@@ -355,6 +395,50 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
         <div className="fields">
           <TextareaField label="Key Challenges" hint="What are the main waste management problems in this area?" name="challenges" value={formData.challenges} onChange={handleInputChange} placeholder="Describe the main challenges…" />
           <TextareaField label="Suggested Location" hint="Where would you recommend placing a disposal site?" name="suggested_location" value={formData.suggested_location} onChange={handleInputChange} placeholder="Describe or name a location…" />
+        </div>
+      );
+      case 9: return (
+        <div className="fields">
+          <div className="field">
+            <label className="field-label">Upload Site Photo</label>
+            <span className="field-hint">Take or upload a photo of the survey site (optional)</span>
+            <div className="image-upload-zone">
+              {imageUrl ? (
+                <div className="image-preview">
+                  <img src={imageUrl} alt="Uploaded preview" className="preview-img" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageUrl(null);
+                      setImageFile(null);
+                      setFormData(p => ({ ...p, image_url: undefined }));
+                    }}
+                    className="remove-image-btn"
+                    title="Remove image"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="file"
+                    id="image-input"
+                    accept="image/*"
+                    onChange={(e) => handleImageSelect(e)}
+                    style={{ display: 'none' }}
+                  />
+                  <label htmlFor="image-input" className="image-upload-btn">
+                    <Upload size={24} />
+                    <span className="upload-text">
+                      {uploading ? `Uploading... ${uploadProgress}%` : 'Click to upload or take a photo'}
+                    </span>
+                    <span className="upload-hint">JPG, PNG, WebP, GIF up to 5MB</span>
+                  </label>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       );
       default: return null;
@@ -791,4 +875,61 @@ const css = `
   .spin { animation: _spin 0.7s linear infinite; }
   @keyframes _spin { to { transform: rotate(360deg); } }
   .sr-only { position: absolute; width: 1px; height: 1px; clip: rect(0,0,0,0); overflow: hidden; }
+
+  /* ── Image Upload ── */
+  .image-upload-zone {
+    display: flex; flex-direction: column; gap: 12px;
+    margin-top: 8px;
+  }
+  .image-upload-btn {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 8px; padding: 32px 24px;
+    border: 2px dashed var(--foam);
+    border-radius: var(--r);
+    background: rgba(207, 244, 210, 0.15);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .image-upload-btn:hover {
+    border-color: var(--teal-l);
+    background: rgba(86, 197, 150, 0.1);
+  }
+  .upload-text {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    text-align: center;
+  }
+  .upload-hint {
+    font-size: 11px; color: var(--muted);
+  }
+  .image-preview {
+    position: relative;
+    display: inline-block;
+    margin: 8px auto;
+  }
+  .preview-img {
+    max-width: 300px; max-height: 300px;
+    border-radius: var(--r);
+    box-shadow: 0 4px 12px rgba(32, 80, 114, 0.15);
+    display: block;
+  }
+  .remove-image-btn {
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: #ef4444;
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  }
+  .remove-image-btn:hover {
+    background: #dc2626;
+    transform: scale(1.1);
+  }
 `;

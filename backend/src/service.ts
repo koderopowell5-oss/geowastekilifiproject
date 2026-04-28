@@ -5,7 +5,7 @@ export class WasteService {
   /**
    * Create a new waste site record
    */
-  static async createWasteSite(data: Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'> & { enumerator_email?: string }): Promise<WasteSiteRecord> {
+  static async createWasteSite(data: Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'> & { enumerator_email?: string; image_url?: string }): Promise<WasteSiteRecord> {
     const {
       latitude,
       longitude,
@@ -39,11 +39,12 @@ export class WasteService {
       challenges,
       suggested_location,
       enumerator_email,
+      image_url,
     } = data;
 
     const sql = `
       INSERT INTO waste_sites (
-        latitude, longitude, ward, settlement_type, household_size,
+        latitude, longitude, geom, ward, settlement_type, household_size,
         waste_types, waste_quantity, waste_separation,
         disposal_method, distance_to_site, collection_frequency,
         road_access, distance_to_road,
@@ -52,10 +53,10 @@ export class WasteService {
         distance_weight, water_weight, road_weight, slope_weight, landuse_weight,
         terrain, flooding,
         policy_awareness, support_new_site, preferred_management,
-        challenges, suggested_location, enumerator_email
+        challenges, suggested_location, enumerator_email, image_url
       )
       VALUES (
-        $1, $2, $3, $4, $5,
+        $1, $2, ST_GeomFromText('POINT(' || $1 || ' ' || $2 || ')', 4326), $3, $4, $5,
         $6, $7, $8,
         $9, $10, $11,
         $12, $13,
@@ -64,7 +65,7 @@ export class WasteService {
         $20, $21, $22, $23, $24,
         $25, $26,
         $27, $28, $29,
-        $30, $31, $32
+        $30, $31, $32, $33
       )
       RETURNING id, latitude, longitude, ward, settlement_type, household_size,
                 waste_types, waste_quantity, waste_separation,
@@ -75,7 +76,7 @@ export class WasteService {
                 distance_weight, water_weight, road_weight, slope_weight, landuse_weight,
                 terrain, flooding,
                 policy_awareness, support_new_site, preferred_management,
-                challenges, suggested_location, enumerator_email,
+                challenges, suggested_location, enumerator_email, image_url,
                 created_at, updated_at;
     `;
 
@@ -91,6 +92,7 @@ export class WasteService {
       policy_awareness, support_new_site, preferred_management,
       challenges, suggested_location,
       enumerator_email || null,
+      image_url || null,
     ];
 
     const result = await query(sql, values);
@@ -113,7 +115,7 @@ export class WasteService {
         distance_weight, water_weight, road_weight, slope_weight, landuse_weight,
         terrain, flooding,
         policy_awareness, support_new_site, preferred_management,
-        challenges, suggested_location, enumerator_email,
+        challenges, suggested_location, enumerator_email, image_url,
         created_at, updated_at
       FROM waste_sites
       ORDER BY created_at DESC
@@ -147,7 +149,7 @@ export class WasteService {
         distance_weight, water_weight, road_weight, slope_weight, landuse_weight,
         terrain, flooding,
         policy_awareness, support_new_site, preferred_management,
-        challenges, suggested_location, enumerator_email,
+        challenges, suggested_location, enumerator_email, image_url,
         created_at, updated_at
       FROM waste_sites
       WHERE enumerator_email = $1
@@ -181,7 +183,7 @@ export class WasteService {
         distance_weight, water_weight, road_weight, slope_weight, landuse_weight,
         terrain, flooding,
         policy_awareness, support_new_site, preferred_management,
-        challenges, suggested_location, enumerator_email,
+        challenges, suggested_location, enumerator_email, image_url,
         created_at, updated_at
       FROM waste_sites
       WHERE id = $1;

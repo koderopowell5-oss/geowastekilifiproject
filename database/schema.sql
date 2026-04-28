@@ -74,6 +74,10 @@ CREATE TABLE IF NOT EXISTS waste_sites (
   -- Open Ended
   challenges TEXT,
   suggested_location TEXT,
+
+  -- Image & Enumerator
+  image_url VARCHAR(500),
+  enumerator_email VARCHAR(100),
   
   -- Metadata
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -84,6 +88,8 @@ CREATE TABLE IF NOT EXISTS waste_sites (
 CREATE INDEX IF NOT EXISTS idx_waste_sites_geom ON waste_sites USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_waste_sites_created_at ON waste_sites (created_at);
 CREATE INDEX IF NOT EXISTS idx_waste_sites_ward ON waste_sites (ward);
+CREATE INDEX IF NOT EXISTS idx_waste_sites_enumerator_email ON waste_sites (enumerator_email);
+CREATE INDEX IF NOT EXISTS idx_waste_sites_image_url ON waste_sites (image_url);
 
 -- Create trigger to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()

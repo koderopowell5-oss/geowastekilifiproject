@@ -110,4 +110,28 @@ export class AuthService {
 
     return result.rows as Enumerator[];
   }
+
+  /**
+   * Delete an enumerator by ID
+   */
+  static async deleteEnumerator(id: number): Promise<boolean> {
+    const result = await pool.query(
+      'DELETE FROM enumerators WHERE id = $1 RETURNING id',
+      [id]
+    );
+
+    return result.rows.length > 0;
+  }
+
+  /**
+   * Delete an enumerator by email
+   */
+  static async deleteEnumeratorByEmail(email: string): Promise<boolean> {
+    const result = await pool.query(
+      'DELETE FROM enumerators WHERE email = $1 RETURNING id',
+      [email]
+    );
+
+    return result.rows.length > 0;
+  }
 }

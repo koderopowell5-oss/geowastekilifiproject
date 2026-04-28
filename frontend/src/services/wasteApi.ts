@@ -182,6 +182,16 @@ class WasteApiService {
   }
 
   /**
+   * Delete an enumerator by ID
+   */
+  async deleteEnumerator(id: number): Promise<void> {
+    const response = await this.api.delete<ApiResponse<any>>(`/auth/enumerators/${id}`);
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to delete enumerator');
+    }
+  }
+
+  /**
    * Check API health
    */
   async checkHealth(): Promise<boolean> {
