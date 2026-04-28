@@ -312,6 +312,45 @@ router.get('/waste/:id', async (req: Request, res: Response) => {
 });
 
 /**
+ * DELETE /api/waste/:id
+ * Delete a waste site record by ID (admin only)
+ */
+router.delete('/waste/:id', authMiddleware, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid ID parameter',
+        error: 'ID must be a valid number',
+      } as ApiResponse);
+    }
+
+    const deleted = await WasteService.deleteWasteSite(Number(id));
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'Waste site record not found',
+      } as ApiResponse);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Waste site record deleted successfully',
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error deleting waste site:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
  * GET /api/waste/stats/summary
  * Get statistics summary
  */

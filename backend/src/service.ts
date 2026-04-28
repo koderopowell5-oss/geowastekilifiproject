@@ -290,4 +290,17 @@ export class WasteService {
     const result = await query(sql, [enumeratorEmail]);
     return result.rowCount > 0;
   }
+
+  /**
+   * Delete a waste site record by ID (admin only)
+   */
+  static async deleteWasteSite(id: number): Promise<boolean> {
+    const sql = `
+      DELETE FROM waste_sites
+      WHERE id = $1;
+    `;
+
+    const result = await query(sql, [id]);
+    return result.rowCount > 0;
+  }
 }

@@ -192,6 +192,16 @@ class WasteApiService {
   }
 
   /**
+   * Delete a waste site record by ID (admin only)
+   */
+  async deleteWasteSite(id: number): Promise<void> {
+    const response = await this.api.delete<ApiResponse<any>>(`/waste/${id}`);
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to delete waste site record');
+    }
+  }
+
+  /**
    * Upload image to backend for Cloudinary storage
    */
   async uploadImage(file: File): Promise<string> {

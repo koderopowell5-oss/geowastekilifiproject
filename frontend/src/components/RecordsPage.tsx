@@ -1,17 +1,49 @@
 import React from 'react';
 import { WasteSiteRecord } from '../../../types';
-import { FileText, Download, X } from 'lucide-react';
+import { FileText, Download, X, Trash2 } from 'lucide-react';
+import { wasteApiService } from '../services/wasteApi';
+import { useNotification } from '../context/NotificationContext';
 
 interface RecordsPageProps {
   sites: WasteSiteRecord[];
+  onSitesChange?: (sites: WasteSiteRecord[]) => void;
 }
 
-export const RecordsPage: React.FC<RecordsPageProps> = ({ sites }) => {
+export const RecordsPage: React.FC<RecordsPageProps> = ({ sites, onSitesChange }) => {
   const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
+  const [deletingId, setDeletingId] = React.useState<number | null>(null);
+  const [sitesData, setSitesData] = React.useState<WasteSiteRecord[]>(sites);
+  const { showSuccess, showError } = useNotification();
+
+  // Update local state when props change
+  React.useEffect(() => {
+    setSitesData(sites);
+  }, [sites]);
   const formatArrayOrString = (data: any): string => {
     if (Array.isArray(data)) return data.join(', ');
     if (typeof data === 'string') return data;
     return '—';
+  };
+
+  const handleDeleteRecord = async (id: number, ward: string) => {
+    if (!window.confirm(`Delete record #${id} from ${ward}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setDeletingId(id);
+      await wasteApiService.deleteWasteSite(id);
+      
+      const updatedSites = sitesData.filter(s => s.id !== id);
+      setSitesData(updatedSites);
+      onSitesChange?.(updatedSites);
+      
+      showSuccess(`Record #${id} has been deleted successfully`);
+    } catch (error: any) {
+      showError(error.message || 'Failed to delete record');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const exportToCSV = () => {
@@ -121,13 +153,13 @@ export const RecordsPage: React.FC<RecordsPageProps> = ({ sites }) => {
         <table className="w-full">
           <thead>
             <tr className="bg-[#f0faf5]">
-              {['Image', 'ID', 'Ward', 'Settlement', 'H/hold', 'Waste Types', 'Qty', 'Disposal', 'Coordinates', 'Date'].map((h) => (
+              {['Image', 'ID', 'Ward', 'Settlement', 'H/hold', 'Waste Types', 'Qty', 'Disposal', 'Coordinates', 'Date', 'Action'].map((h) => (
                 <th key={h} className="px-3 sm:px-4 py-2 sm:py-3 text-left text-[9px] sm:text-[11px] font-semibold text-[#205072] uppercase tracking-wide whitespace-nowrap border-b border-[#CFF4D2]/40">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {sites.map((site, idx) => (
+            {sitesData.map((site, idx) => (
               <tr key={site.id} className={`border-b border-[#CFF4D2]/30 hover:bg-[#f0faf5]/60 transition-colors ${idx % 2 === 0 ? '' : 'bg-[#f0faf5]/20'}`}>
                 <td className="px-3 sm:px-4 py-2 sm:py-3">
                   {site.image_url ? (
@@ -162,17 +194,27 @@ export const RecordsPage: React.FC<RecordsPageProps> = ({ sites }) => {
                 <td className="px-3 sm:px-4 py-2 sm:py-3 text-[9px] sm:text-[11px] text-gray-400 whitespace-nowrap">
                   {site.created_at ? new Date(site.created_at as string).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}
                 </td>
+                <td className="px-3 sm:px-4 py-2 sm:py-3 text-center whitespace-nowrap">
+                  <button
+                    onClick={() => handleDeleteRecord(site.id!, site.ward)}
+                    disabled={deletingId === site.id}
+                    className="inline-flex items-center justify-center p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Delete record"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {sites.length === 0 && (
+        {sitesData.length === 0 && (
           <div className="py-8 sm:py-16 text-center text-gray-400 text-[11px] sm:text-sm">No records found</div>
         )}
       </div>
-      {sites.length > 0 && (
+      {sitesData.length > 0 && (
         <div className="px-4 sm:px-6 py-2 sm:py-3 bg-[#f0faf5] border-t border-[#CFF4D2]/40">
-          <p className="text-[10px] sm:text-[11px] text-gray-400">{sites.length} total records</p>
+          <p className="text-[10px] sm:text-[11px] text-gray-400">{sitesData.length} total records</p>
         </div>
       )}
 

@@ -550,7 +550,13 @@ export const AdminDashboard: React.FC = () => {
               icon: <FileText size={20} />,
               content: (
                 <div style={{ maxWidth: 960, margin: '0 auto', padding: '36px 24px 100px' }}>
-                  <RecordsPage sites={sites} />
+                  <RecordsPage 
+                    sites={sites}
+                    onSitesChange={(updatedSites) => {
+                      setSites(updatedSites);
+                      analyzeData(updatedSites);
+                    }}
+                  />
                 </div>
               ),
             },
