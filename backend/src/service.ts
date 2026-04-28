@@ -58,13 +58,13 @@ export class WasteService {
         quality_score, quality_issues, is_flagged, flag_reason
       )
       VALUES (
-        $1, $2, ST_SetSRID(ST_MakePoint($2, $1), 4326), $3, $4, $5,
+        $1::DECIMAL(10,8), $2::DECIMAL(11,8), ST_SetSRID(ST_MakePoint($2::DECIMAL(11,8), $1::DECIMAL(10,8)), 4326), $3, $4, $5,
         $6, $7, $8,
         $9, $10, $11,
         $12, $13,
         $14, $15, $16, $17,
         $18, $19,
-        $20, $21, $22, $23, $24,
+        $20::SMALLINT, $21::SMALLINT, $22::SMALLINT, $23::SMALLINT, $24::SMALLINT,
         $25, $26,
         $27, $28, $29,
         $30, $31, $32, $33, $34, $35, $36, $37
