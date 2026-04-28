@@ -30,21 +30,34 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
 
     const token = authHeader.substring(7);
 
-    // For now, use simple email-based token (in production, use JWT)
-    // Token format: email:timestamp (decoded in frontend)
-    const [email] = token.split(':');
+    // For now, use simple email/username-based token (in production, use JWT)
+    // Token format: email:timestamp or username:timestamp (decoded in frontend)
+    const [identifier] = token.split(':');
 
-    if (!email) {
+    if (!identifier) {
       return res.status(401).json({
         success: false,
         message: 'Invalid token format',
       } as ApiResponse);
     }
 
+    // Check if this is admin
+    const ADMIN_USERNAME = 'kodero_admin';
+    if (identifier === ADMIN_USERNAME) {
+      req.user = {
+        id: 0,
+        email: 'admin@geowaste.local',
+        name: 'Administrator',
+        role: 'admin',
+        permissions: {},
+      };
+      return next();
+    }
+
     // Fetch user with permissions from database
     const result = await pool.query(
       'SELECT id, email, name, role, permissions FROM enumerators WHERE email = $1',
-      [email]
+      [identifier]
     );
 
     if (result.rows.length === 0) {

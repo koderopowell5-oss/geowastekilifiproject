@@ -14,6 +14,27 @@ class WasteApiService {
       },
     });
 
+    // Add request interceptor to attach Authorization header
+    this.api.interceptors.request.use(
+      (config) => {
+        const authUser = localStorage.getItem('auth_user');
+        if (authUser) {
+          try {
+            const user = JSON.parse(authUser);
+            // Set Authorization header with user email or username
+            const token = 'email' in user ? user.email : user.username;
+            if (token) {
+              config.headers.Authorization = `Bearer ${token}:${Date.now()}`;
+            }
+          } catch (e) {
+            console.error('Error parsing auth_user from localStorage:', e);
+          }
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
     // Add response interceptor to handle errors
     this.api.interceptors.response.use(
       (response) => response,
