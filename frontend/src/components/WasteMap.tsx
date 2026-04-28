@@ -246,6 +246,26 @@ export const WasteMap: React.FC<MapProps> = ({ onMarkerClick, onClose, hideHeade
               {/* Modal body */}
               <div className="wm-modal-body">
 
+                {/* Image section */}
+                {selected.image_url && (
+                  <section style={{ marginBottom: 20 }}>
+                    <img 
+                      src={selected.image_url} 
+                      alt="Waste site"
+                      style={{
+                        width: '100%',
+                        height: 200,
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => window.open(selected.image_url, '_blank')}
+                      title="Click to view full size"
+                    />
+                  </section>
+                )}
+
                 <section>
                   <h3 className="wm-modal-section-title">Location</h3>
                   <p className="wm-modal-section-sub">
@@ -265,6 +285,7 @@ export const WasteMap: React.FC<MapProps> = ({ onMarkerClick, onClose, hideHeade
                     { label: 'Collection',   value: selected.collection_frequency },
                     { label: 'Road Access',  value: selected.road_access },
                     { label: 'Flood Risk',   value: selected.flooding },
+                    { label: 'Enumerator',   value: selected.enumerator_email },
                   ].filter(f => f.value).map(f => (
                     <div key={f.label} className="wm-detail-row">
                       <span className="wm-detail-label">{f.label}</span>

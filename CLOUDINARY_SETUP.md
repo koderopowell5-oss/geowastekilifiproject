@@ -27,7 +27,7 @@ This backend-driven approach is more secure than exposing credentials to the cli
    - **API Key** (e.g., `123456789012345`)
    - **API Secret** (keep this private - don't share!)
 
-⚠️ **CRITICAL: Keep API Secret private. Never commit to version control!**
+**CRITICAL: Keep API Secret private. Never commit to version control!**
 
 ### 3. Configure Backend Environment Variables
 

@@ -1,12 +1,13 @@
 import React from 'react';
 import { WasteSiteRecord } from '../../../types';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, X } from 'lucide-react';
 
 interface RecordsPageProps {
   sites: WasteSiteRecord[];
 }
 
 export const RecordsPage: React.FC<RecordsPageProps> = ({ sites }) => {
+  const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
   const formatArrayOrString = (data: any): string => {
     if (Array.isArray(data)) return data.join(', ');
     if (typeof data === 'string') return data;
@@ -130,13 +131,12 @@ export const RecordsPage: React.FC<RecordsPageProps> = ({ sites }) => {
               <tr key={site.id} className={`border-b border-[#CFF4D2]/30 hover:bg-[#f0faf5]/60 transition-colors ${idx % 2 === 0 ? '' : 'bg-[#f0faf5]/20'}`}>
                 <td className="px-3 sm:px-4 py-2 sm:py-3">
                   {site.image_url ? (
-                    <a href={site.image_url} target="_blank" rel="noopener noreferrer" className="inline-block">
-                      <img 
-                        src={site.image_url} 
-                        alt="Record" 
-                        className="w-10 h-10 rounded-lg object-cover hover:shadow-md transition-shadow"
-                      />
-                    </a>
+                    <img 
+                      src={site.image_url} 
+                      alt="Record" 
+                      onClick={() => setSelectedImage(site.image_url!)}
+                      className="w-10 h-10 rounded-lg object-cover hover:shadow-md transition-shadow cursor-pointer"
+                    />
                   ) : (
                     <div className="w-10 h-10 rounded-lg bg-[#f0faf5] flex items-center justify-center text-[#ccc] text-xs">—</div>
                   )}
@@ -173,6 +173,34 @@ export const RecordsPage: React.FC<RecordsPageProps> = ({ sites }) => {
       {sites.length > 0 && (
         <div className="px-4 sm:px-6 py-2 sm:py-3 bg-[#f0faf5] border-t border-[#CFF4D2]/40">
           <p className="text-[10px] sm:text-[11px] text-gray-400">{sites.length} total records</p>
+        </div>
+      )}
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div 
+            className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-auto relative"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-3 right-3 bg-white/90 hover:bg-white p-2 rounded-lg transition-colors z-10 shadow-md"
+            >
+              <X size={20} className="text-gray-600" />
+            </button>
+            <img 
+              src={selectedImage} 
+              alt="Full size" 
+              className="w-full h-auto"
+            />
+            <div className="p-4 border-t border-gray-200 bg-gray-50">
+              <p className="text-xs text-gray-500">Click outside or the X button to close</p>
+            </div>
+          </div>
         </div>
       )}
     </div>

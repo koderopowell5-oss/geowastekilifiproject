@@ -175,7 +175,7 @@ Another PostgreSQL instance is running. Either:
 
 ## Production Configuration
 
-⚠️ **DO NOT USE** default password in production!
+**DO NOT USE** default password in production!
 
 For production, set a strong password:
 ```sql

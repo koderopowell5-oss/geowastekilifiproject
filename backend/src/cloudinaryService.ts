@@ -38,8 +38,8 @@ export class CloudinaryUploadService {
     }
 
     if (!this.cloudName || !this.apiKey || !this.apiSecret) {
-      console.warn('⚠️ Cloudinary is not fully configured in backend. Image uploads will not work.');
-      console.warn('   Set either CLOUDINARY_URL or individual variables (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)');
+      console.warn('Cloudinary is not fully configured in backend. Image uploads will not work.');
+      console.warn('Set either CLOUDINARY_URL or individual variables (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)');
     }
   }
 

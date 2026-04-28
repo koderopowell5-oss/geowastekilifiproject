@@ -1,11 +1,11 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import wasteRoutes from './routes';
 import { ApiResponse } from './types';
 import { initializeDatabase } from './db';
+import { runMigrations } from './migrations';
 
-dotenv.config();
+require('dotenv').config();
 
 const app: Express = express();
 const PORT = process.env.PORT || 5000;
@@ -94,6 +94,9 @@ app.listen(PORT, async () => {
   try {
     await initializeDatabase();
     console.log('\nDatabase initialized and ready\n');
+
+    // Run migrations
+    await runMigrations();
   } catch (err: any) {
     console.error('\nDatabase connection failed:', err.message);
     console.error('The server is running but database operations will fail.');

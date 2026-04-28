@@ -3,7 +3,10 @@ import multer from 'multer';
 import { WasteService } from './service';
 import { AuthService } from './authService';
 import { cloudinaryUploadService } from './cloudinaryService';
-import { ApiResponse, WasteSiteRecord } from './types';
+import { emailService } from './emailService';
+import { ApiResponse, WasteSiteRecord, RecordComment, EnumeratorAssignment } from './types';
+import { authMiddleware, requireAdmin, requireSupervisor, AuthRequest } from './middleware';
+import { pool } from './db';
 
 const router = Router();
 
@@ -142,7 +145,7 @@ router.get('/auth/enumerators', async (req: Request, res: Response) => {
  * DELETE /api/auth/enumerators/:id
  * Delete an enumerator by ID
  */
-router.delete('/auth/enumerators/:id', async (req: Request, res: Response) => {
+router.delete('/auth/enumerators/:id', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -472,6 +475,423 @@ router.delete('/drafts/:enumerator_email', async (req: Request, res: Response) =
     } as ApiResponse);
   } catch (error: any) {
     console.error('Error deleting draft:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/records/:id/comments
+ * Add a comment to a record
+ */
+router.post('/records/:id/comments', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { content, comment_type } = req.body;
+    const author_id = req.user?.id;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid record ID',
+      } as ApiResponse);
+    }
+
+    if (!content || !comment_type || !author_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: content, comment_type',
+      } as ApiResponse);
+    }
+
+    const result = await pool.query(
+      `INSERT INTO record_comments (waste_site_id, author_id, content, comment_type)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, waste_site_id, author_id, content, comment_type, created_at`,
+      [id, author_id, content, comment_type]
+    );
+
+    const comment = result.rows[0];
+
+    // Send email notification to record author
+    const recordResult = await pool.query(
+      'SELECT enumerator_email FROM waste_sites WHERE id = $1',
+      [id]
+    );
+    if (recordResult.rows[0]?.enumerator_email && recordResult.rows[0].enumerator_email !== req.user?.email) {
+      await emailService.sendCommentEmail(
+        recordResult.rows[0].enumerator_email,
+        req.user?.name || 'Administrator',
+        Number(id),
+        content
+      );
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Comment added successfully',
+      data: comment,
+    } as ApiResponse<RecordComment>);
+  } catch (error: any) {
+    console.error('Error adding comment:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/records/:id/comments
+ * Get all comments for a record
+ */
+router.get('/records/:id/comments', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid record ID',
+      } as ApiResponse);
+    }
+
+    const result = await pool.query(
+      `SELECT c.id, c.waste_site_id, c.author_id, c.content, c.comment_type, c.created_at,
+              e.name as author_name
+       FROM record_comments c
+       LEFT JOIN enumerators e ON c.author_id = e.id
+       WHERE c.waste_site_id = $1
+       ORDER BY c.created_at DESC`,
+      [id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Comments retrieved successfully',
+      data: result.rows,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error retrieving comments:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * DELETE /api/records/:id/comments/:commentId
+ * Delete a comment
+ */
+router.delete('/records/:id/comments/:commentId', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, commentId } = req.params;
+
+    if (!commentId || isNaN(Number(commentId))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid comment ID',
+      } as ApiResponse);
+    }
+
+    // Check if user is comment author or admin
+    const result = await pool.query(
+      'SELECT author_id FROM record_comments WHERE id = $1',
+      [commentId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Comment not found',
+      } as ApiResponse);
+    }
+
+    if (result.rows[0].author_id !== req.user?.id && req.user?.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot delete other users comments',
+      } as ApiResponse);
+    }
+
+    await pool.query('DELETE FROM record_comments WHERE id = $1', [commentId]);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Comment deleted successfully',
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error deleting comment:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/assignments
+ * Create a new enumerator assignment
+ */
+router.post('/assignments', authMiddleware, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { enumerator_id, ward, target_records, description, status } = req.body;
+    const assigned_by = req.user?.id;
+
+    if (!enumerator_id || !ward) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: enumerator_id, ward',
+      } as ApiResponse);
+    }
+
+    const result = await pool.query(
+      `INSERT INTO enumerator_assignments (enumerator_id, ward, assigned_by, target_records, description, status)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, enumerator_id, ward, assigned_by, target_records, description, status, assigned_at`,
+      [enumerator_id, ward, assigned_by, target_records || null, description || null, status || 'active']
+    );
+
+    const assignment = result.rows[0];
+
+    // Get enumerator email and send assignment notification
+    const enumResult = await pool.query('SELECT email, name FROM enumerators WHERE id = $1', [enumerator_id]);
+    if (enumResult.rows[0]) {
+      await emailService.sendAssignmentEmail(
+        enumResult.rows[0].email,
+        enumResult.rows[0].name,
+        ward,
+        target_records || 0
+      );
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Assignment created successfully',
+      data: assignment,
+    } as ApiResponse<EnumeratorAssignment>);
+  } catch (error: any) {
+    console.error('Error creating assignment:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/assignments
+ * Get all assignments
+ */
+router.get('/assignments', async (req: Request, res: Response) => {
+  try {
+    const enumerator_id = req.query.enumerator_id as string | undefined;
+    const status = req.query.status as string | undefined;
+
+    let sql = `SELECT a.id, a.enumerator_id, a.ward, a.assigned_by, a.target_records, 
+                      a.description, a.status, a.assigned_at, e.name, e.email
+               FROM enumerator_assignments a
+               LEFT JOIN enumerators e ON a.enumerator_id = e.id`;
+
+    const params: any[] = [];
+    const conditions: string[] = [];
+
+    if (enumerator_id) {
+      conditions.push(`a.enumerator_id = $${params.length + 1}`);
+      params.push(Number(enumerator_id));
+    }
+
+    if (status) {
+      conditions.push(`a.status = $${params.length + 1}`);
+      params.push(status);
+    }
+
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    sql += ' ORDER BY a.assigned_at DESC';
+
+    const result = await pool.query(sql, params);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Assignments retrieved successfully',
+      data: result.rows,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error retrieving assignments:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/assignments/:id
+ * Get a specific assignment
+ */
+router.get('/assignments/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid assignment ID',
+      } as ApiResponse);
+    }
+
+    const result = await pool.query(
+      `SELECT a.id, a.enumerator_id, a.ward, a.assigned_by, a.target_records,
+              a.description, a.status, a.assigned_at, e.name, e.email
+       FROM enumerator_assignments a
+       LEFT JOIN enumerators e ON a.enumerator_id = e.id
+       WHERE a.id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Assignment not found',
+      } as ApiResponse);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Assignment retrieved successfully',
+      data: result.rows[0],
+    } as ApiResponse<EnumeratorAssignment>);
+  } catch (error: any) {
+    console.error('Error retrieving assignment:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * PATCH /api/assignments/:id
+ * Update an assignment
+ */
+router.patch('/assignments/:id', authMiddleware, requireSupervisor, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, target_records, description } = req.body;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid assignment ID',
+      } as ApiResponse);
+    }
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+
+    if (status !== undefined) {
+      updates.push(`status = $${paramCount}`);
+      values.push(status);
+      paramCount++;
+    }
+
+    if (target_records !== undefined) {
+      updates.push(`target_records = $${paramCount}`);
+      values.push(target_records);
+      paramCount++;
+    }
+
+    if (description !== undefined) {
+      updates.push(`description = $${paramCount}`);
+      values.push(description);
+      paramCount++;
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No fields to update',
+      } as ApiResponse);
+    }
+
+    values.push(id);
+
+    const result = await pool.query(
+      `UPDATE enumerator_assignments SET ${updates.join(', ')}, updated_at = NOW()
+       WHERE id = $${paramCount}
+       RETURNING id, enumerator_id, ward, assigned_by, target_records, description, status, assigned_at`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Assignment not found',
+      } as ApiResponse);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Assignment updated successfully',
+      data: result.rows[0],
+    } as ApiResponse<EnumeratorAssignment>);
+  } catch (error: any) {
+    console.error('Error updating assignment:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * DELETE /api/assignments/:id
+ * Delete an assignment
+ */
+router.delete('/assignments/:id', authMiddleware, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid assignment ID',
+      } as ApiResponse);
+    }
+
+    const result = await pool.query(
+      'DELETE FROM enumerator_assignments WHERE id = $1 RETURNING id',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Assignment not found',
+      } as ApiResponse);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Assignment deleted successfully',
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error deleting assignment:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',

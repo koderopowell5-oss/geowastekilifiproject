@@ -1,5 +1,6 @@
 import { query } from './db';
 import { WasteSiteRecord, ApiResponse } from './types';
+import { dataQualityService } from './dataQualityService';
 
 export class WasteService {
   /**
@@ -53,10 +54,11 @@ export class WasteService {
         distance_weight, water_weight, road_weight, slope_weight, landuse_weight,
         terrain, flooding,
         policy_awareness, support_new_site, preferred_management,
-        challenges, suggested_location, enumerator_email, image_url
+        challenges, suggested_location, enumerator_email, image_url,
+        quality_score, quality_issues, is_flagged, flag_reason
       )
       VALUES (
-        $1, $2, ST_GeomFromText('POINT(' || $1 || ' ' || $2 || ')', 4326), $3, $4, $5,
+        $1, $2, ST_SetSRID(ST_MakePoint($2, $1), 4326), $3, $4, $5,
         $6, $7, $8,
         $9, $10, $11,
         $12, $13,
@@ -65,7 +67,7 @@ export class WasteService {
         $20, $21, $22, $23, $24,
         $25, $26,
         $27, $28, $29,
-        $30, $31, $32, $33
+        $30, $31, $32, $33, $34, $35, $36, $37
       )
       RETURNING id, latitude, longitude, ward, settlement_type, household_size,
                 waste_types, waste_quantity, waste_separation,
@@ -77,8 +79,15 @@ export class WasteService {
                 terrain, flooding,
                 policy_awareness, support_new_site, preferred_management,
                 challenges, suggested_location, enumerator_email, image_url,
+                quality_score, quality_issues, is_flagged, flag_reason,
                 created_at, updated_at;
     `;
+
+    // Calculate quality score
+    const tempRecord = { ...data } as any;
+    const { score, issues } = dataQualityService.calculateQualityScore(tempRecord);
+    const isFlagged = dataQualityService.shouldFlag(score, issues);
+    const flagReason = isFlagged ? issues[0] || 'Auto-flagged for low quality' : null;
 
     const values = [
       latitude, longitude, ward, settlement_type, household_size,
@@ -93,6 +102,10 @@ export class WasteService {
       challenges, suggested_location,
       enumerator_email || null,
       image_url || null,
+      score,
+      issues,
+      isFlagged,
+      flagReason,
     ];
 
     const result = await query(sql, values);

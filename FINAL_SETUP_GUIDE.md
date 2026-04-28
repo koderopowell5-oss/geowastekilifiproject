@@ -67,7 +67,7 @@ CLOUDINARY_API_KEY=123456789012345
 CLOUDINARY_API_SECRET=abcd1234efgh5678ijkl9012
 ```
 
-⚠️ **IMPORTANT**: Never commit this file to git. It's already in `.gitignore`.
+**IMPORTANT**: Never commit this file to git. It's already in `.gitignore`.
 
 ---
 
