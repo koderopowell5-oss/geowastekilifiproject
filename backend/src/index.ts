@@ -1,6 +1,7 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import wasteRoutes from './routes';
+import versionRoutes from './versionRoutes';
 import { ApiResponse } from './types';
 import { initializeDatabase } from './db';
 import { runMigrations } from './migrations';
@@ -66,6 +67,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 });
 
 // API Routes
+app.use('/api', versionRoutes);
 app.use('/api', wasteRoutes);
 
 // 404 handler
@@ -107,6 +109,7 @@ app.listen(PORT, async () => {
   }
 
   console.log('API Endpoints:');
+  console.log(`  Version: http://localhost:${PORT}/api/version (GET), /version/check (GET)`);
   console.log(`  Auth:  http://localhost:${PORT}/api/auth/signup (POST), /login (POST), /enumerators (GET)`);
   console.log(`  Waste: http://localhost:${PORT}/api/waste (POST to create, GET to retrieve)`);
   console.log(`  Health: http://localhost:${PORT}/api/health (GET)\n`);

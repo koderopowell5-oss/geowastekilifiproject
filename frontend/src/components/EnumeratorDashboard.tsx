@@ -311,7 +311,7 @@ const css = `
 
   .enum-page-content {
     width: 100%;
-    max-width: 600px;
+    max-width: 900px;
     margin: 0 auto;
   }
 
@@ -327,7 +327,7 @@ const css = `
 
   /* ── Collections CTA ── */
   .enum-collections-cta {
-    max-width: 600px; margin: 0 auto;
+    max-width: 900px; margin: 0 auto;
     padding: 0 24px 80px;
   }
   .enum-divider { border: none; border-top: 1px solid var(--border); margin-bottom: 24px; }

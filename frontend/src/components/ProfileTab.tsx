@@ -23,43 +23,29 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onLogout, showSettings: 
 
   if (showGeneralSettings) {
     return (
-      <div style={{ position: 'relative' }}>
-        <button
-          onClick={() => {
-            setShowGeneralSettings(false);
-            onSettingsClose?.();
-          }}
-          style={{
-            position: 'absolute',
-            top: '20px',
-            left: '24px',
-            zIndex: 50,
-            background: 'rgba(255,255,255,0.9)',
-            border: '1px solid #e2ede8',
-            borderRadius: '8px',
-            padding: '8px 12px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '12px',
-            fontWeight: 600,
-            color: '#205072',
-            fontFamily: "'DM Sans', sans-serif",
-            transition: 'all 0.15s'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'white';
-            e.currentTarget.style.borderColor = '#329D9C';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.9)';
-            e.currentTarget.style.borderColor = '#e2ede8';
-          }}
-        >
-          <ArrowLeft size={14} />
-          Back
-        </button>
+      <div>
+        {/* Back nav — flows in document, never overlaps */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '10px 20px',
+          borderBottom: '1px solid #e2ede8',
+          background: '#f6fbf8'
+        }}>
+          <button
+            onClick={() => {
+              setShowGeneralSettings(false);
+              onSettingsClose?.();
+            }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 13, fontWeight: 600, color: '#205072',
+              fontFamily: "'DM Sans', sans-serif"
+            }}
+          >
+            <ArrowLeft size={14} /> Back
+          </button>
+        </div>
         <GeneralSettings />
       </div>
     );
@@ -246,9 +232,9 @@ const css = `
 
   /* ── Body ── */
   .profile-body {
-    max-width: 900px; margin: 0 auto;
-    padding: 36px 24px 80px;
-    display: flex; flex-direction: column; gap: 28px;
+    width: 100%;
+    padding: 24px 20px 60px;
+    display: flex; flex-direction: column; gap: 24px;
   }
 
   /* ── Section head ── */

@@ -1,15 +1,18 @@
 import React from 'react';
 import { AdminDashboard } from './components/AdminDashboard';
 import { EnumeratorDashboard } from './components/EnumeratorDashboard';
+import { UpdateModal } from './components/UpdateModal';
 import { Auth } from './pages/Auth';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { ToastContainer } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { useVersionCheck } from './hooks/useVersionCheck';
 import './App.css';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, isAdmin } = useAuth();
+  const { updateInfo, isUpdateModalOpen, closeUpdateModal, dismissUpdate } = useVersionCheck();
 
   // Show loading state
   if (isLoading) {
@@ -31,6 +34,14 @@ const AppContent: React.FC = () => {
   // Main app content for authenticated users
   return (
     <div className="App">
+      {/* Update Modal */}
+      <UpdateModal
+        isOpen={isUpdateModalOpen}
+        updateInfo={updateInfo}
+        onClose={closeUpdateModal}
+        onDismiss={dismissUpdate}
+      />
+
       {/* Admin Dashboard */}
       {isAdmin && <AdminDashboard />}
       

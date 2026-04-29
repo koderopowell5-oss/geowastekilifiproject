@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Info, AlertCircle, CheckCircle } from 'lucide-react';
+import { Download, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface DownloadStatus {
   type: 'idle' | 'downloading' | 'success' | 'error';
@@ -199,8 +199,8 @@ const css = `
 
   /* ── Body ── */
   .settings-body {
-    max-width: 900px; margin: 0 auto;
-    padding: 36px 24px 80px;
+    width: 100%;
+    padding: 24px 20px 60px;
     display: flex; flex-direction: column; gap: 24px;
   }
 
