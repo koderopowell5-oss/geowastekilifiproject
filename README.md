@@ -11,6 +11,7 @@
 ## 📋 Table of Contents
 
 - [Overview](#overview)
+- [📱 Mobile App (NEW!)](#-mobile-app-new)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Prerequisites](#prerequisites)
@@ -25,6 +26,48 @@
 - [Database Backup & Restore](#database-backup--restore)
 - [Production Deployment](#production-deployment)
 - [Academic Context](#academic-context)
+
+---
+
+## 📱 Mobile App (NEW!)
+
+GeoWaste Kilifi now has a **native Android app** built with Capacitor! 
+
+### Download the Mobile App
+
+Web users can download the Android APK directly from the application:
+
+1. **Open Profile** → Click on your profile icon in the sidebar
+2. **Go to General Settings** → Click "General Settings" button
+3. **Download APK** → Click the blue "Download APK" button
+4. **Install on Your Phone** → Follow the on-screen installation guide
+
+### Why Use the Mobile App?
+
+✅ **Better Performance** - Optimized for mobile devices
+✅ **Offline Support** - Work without internet connection
+✅ **Native Features** - Direct access to camera and GPS
+✅ **Same Data** - Syncs with web version automatically
+✅ **Secure** - All data encrypted and secure
+
+### For Developers
+
+- **Build Guide**: See [ANDROID_BUILD_GUIDE.md](./ANDROID_BUILD_GUIDE.md)
+- **Build Script**: Run `.\build-apk.ps1` to build APK
+- **Implementation Details**: See [ANDROID_APP_IMPLEMENTATION.md](./ANDROID_APP_IMPLEMENTATION.md)
+- **User Guide**: See [MOBILE_APP_USER_GUIDE.md](./MOBILE_APP_USER_GUIDE.md)
+
+**Quick Start**:
+```powershell
+# Build debug APK
+.\build-apk.ps1 -BuildType debug
+
+# Build release APK
+.\build-apk.ps1 -BuildType release
+
+# Build and deploy to device
+.\build-apk.ps1 -BuildType debug -Deploy
+```
 
 ---
 

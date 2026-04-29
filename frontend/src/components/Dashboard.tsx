@@ -9,6 +9,7 @@ interface DashboardProps {
   onStartSurvey?: () => void;
   onViewMap?: () => void;
   onViewAdmin?: () => void;
+  onSettings?: () => void;
   hideHeader?: boolean;
 }
 
@@ -19,7 +20,7 @@ interface Stats {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
-  onStartSurvey, onViewMap, onViewAdmin, hideHeader = false,
+  onStartSurvey, onViewMap, onViewAdmin, onSettings, hideHeader = false,
 }) => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -111,6 +112,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 Collecting data for <strong>{(user as any)?.ward || 'Kilifi'}</strong> ward
               </p>
             )}
+          </div>
+
+          {/* ── Version Banner ── */}
+          <div className="dash-version-banner">
+            <div className="banner-main">
+              <div className="banner-info">
+                <p className="banner-version-label">New Version Available</p>
+                <p className="banner-version-text">Update to GeoWaste v1.0.1 for the latest features and improvements</p>
+              </div>
+              <button className="banner-update-btn" onClick={onSettings}>
+                Download Now
+              </button>
+            </div>
           </div>
 
           <div className="dash-divider" />
@@ -431,5 +445,73 @@ const css = `
     border: 1.5px solid var(--border);
     background: white;
     font-size: 12px; font-weight: 500; color: var(--muted);
+  }
+
+  /* ── Version Banner ── */
+  .dash-version-banner {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 16px;
+  }
+  .banner-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .banner-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .banner-version-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--teal);
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .banner-version-text {
+    font-size: 13px;
+    color: var(--text);
+    margin: 0;
+    line-height: 1.4;
+  }
+  .banner-update-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: var(--teal);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .banner-update-btn:hover {
+    background: var(--teal-d);
+  }
+  .banner-update-btn:active {
+    transform: scale(0.98);
+  }
+
+  @media (max-width: 540px) {
+    .banner-main {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .banner-update-btn {
+      width: 100%;
+    }
   }
 `;

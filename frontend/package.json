@@ -4,6 +4,10 @@
   "description": "Frontend for GeoWaste Kilifi geospatial data collection system",
   "private": true,
   "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "@capacitor/status-bar": "^8.0.2",
     "axios": "^1.5.0",
     "leaflet": "^1.9.4",
     "react": "^18.2.0",

@@ -1,21 +1,69 @@
-import React from 'react';
-import { LogOut, User, Settings, Phone, Mail, MapPin, Shield } from 'lucide-react';
+import React, { useState } from 'react';
+import { LogOut, User, Settings, Phone, Mail, MapPin, Shield, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { GeneralSettings } from './GeneralSettings';
 
 interface ProfileTabProps {
   onLogout?: () => void;
+  showSettings?: boolean;
+  onSettingsClose?: () => void;
 }
 
-export const ProfileTab: React.FC<ProfileTabProps> = ({ onLogout }) => {
+export const ProfileTab: React.FC<ProfileTabProps> = ({ onLogout, showSettings: initialShowSettings, onSettingsClose }) => {
   const { user, logout, isAdmin } = useAuth();
   const { showSuccess } = useNotification();
+  const [showGeneralSettings, setShowGeneralSettings] = useState(initialShowSettings || false);
 
   const handleLogout = () => {
     showSuccess('You have been logged out');
     logout();
     onLogout?.();
   };
+
+  if (showGeneralSettings) {
+    return (
+      <div style={{ position: 'relative' }}>
+        <button
+          onClick={() => {
+            setShowGeneralSettings(false);
+            onSettingsClose?.();
+          }}
+          style={{
+            position: 'absolute',
+            top: '20px',
+            left: '24px',
+            zIndex: 50,
+            background: 'rgba(255,255,255,0.9)',
+            border: '1px solid #e2ede8',
+            borderRadius: '8px',
+            padding: '8px 12px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '12px',
+            fontWeight: 600,
+            color: '#205072',
+            fontFamily: "'DM Sans', sans-serif",
+            transition: 'all 0.15s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'white';
+            e.currentTarget.style.borderColor = '#329D9C';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.9)';
+            e.currentTarget.style.borderColor = '#e2ede8';
+          }}
+        >
+          <ArrowLeft size={14} />
+          Back
+        </button>
+        <GeneralSettings />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -115,7 +163,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onLogout }) => {
           {/* Settings section */}
           <section>
             <h3 className="profile-section-title" style={{ fontSize: '16px', marginBottom: '16px' }}>Settings</h3>
-            <button className="profile-settings-row">
+            <button onClick={() => setShowGeneralSettings(true)} className="profile-settings-row">
               <div className="profile-field-icon-wrap">
                 <Settings size={14} className="profile-field-icon" />
               </div>

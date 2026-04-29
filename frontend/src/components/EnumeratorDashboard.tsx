@@ -43,12 +43,18 @@ export const EnumeratorDashboard: React.FC = () => {
   const [editingDraftId, setEditingDraftId] = useState<string | undefined>();
   const [editingDraftData, setEditingDraftData] = useState<any>();
   const [showCollections, setShowCollections] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const { user, logout, isAdmin } = useAuth();
   const { showSuccess } = useNotification();
 
   const handleLogout = () => {
     logout();
     showSuccess('Logged out successfully ✓');
+  };
+
+  const handleGoToSettings = () => {
+    setCurrentPage('profile');
+    setShowSettings(true);
   };
 
   const handleEditDraft = (draftId: string, formData: Record<string, any>) => {
@@ -120,7 +126,7 @@ export const EnumeratorDashboard: React.FC = () => {
                 <div className="enum-page">
                   <PageBanner src="images/home.svg" alt="Home" />
                   <div className="enum-page-content">
-                    <Dashboard hideHeader={true} />
+                    <Dashboard hideHeader={true} onSettings={handleGoToSettings} />
                   </div>
                 </div>
               ),
@@ -172,7 +178,7 @@ export const EnumeratorDashboard: React.FC = () => {
               content: (
                 <div className="enum-page">
                   <PageBanner src="images/profile.svg" alt="Profile" />
-                  <ProfileTab />
+                  <ProfileTab showSettings={showSettings} onSettingsClose={() => setShowSettings(false)} />
                 </div>
               ),
             },
