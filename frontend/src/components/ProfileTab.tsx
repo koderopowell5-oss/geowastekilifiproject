@@ -222,7 +222,7 @@ const css = `
     border-bottom: 1px solid var(--border);
   }
   .profile-header-inner {
-    max-width: 600px; margin: 0 auto;
+    max-width: 900px; margin: 0 auto;
     padding: 16px 24px 12px;
     display: flex; align-items: flex-start; justify-content: space-between;
   }
@@ -235,7 +235,7 @@ const css = `
     color: var(--teal-d); letter-spacing: -0.3px;
   }
   .profile-progress-rail {
-    max-width: 600px; margin: 0 auto;
+    max-width: 900px; margin: 0 auto;
     height: 2px; background: var(--foam);
   }
   .profile-progress-fill {
@@ -246,7 +246,7 @@ const css = `
 
   /* ── Body ── */
   .profile-body {
-    max-width: 600px; margin: 0 auto;
+    max-width: 900px; margin: 0 auto;
     padding: 36px 24px 80px;
     display: flex; flex-direction: column; gap: 28px;
   }
