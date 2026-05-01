@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, Eye, EyeOff, ArrowLeft, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
-import { useNavigate, useSearchParams } from 'react-router-dom';
 import { buildApiUrl } from '../config/api';
 
-export const ResetPasswordPage: React.FC = () => {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+interface ResetPasswordPageProps {
+  token?: string;
+  onBack: () => void;
+  onResetSuccess?: () => void;
+}
+
+export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({ token = '', onBack, onResetSuccess }) => {
   const { showSuccess, showError } = useNotification();
-  
-  const token = searchParams.get('token');
   
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -23,12 +24,13 @@ export const ResetPasswordPage: React.FC = () => {
   useEffect(() => {
     if (!token) {
       showError('Invalid reset link');
-      navigate('/login');
+      setIsVerifying(false);
       return;
     }
 
     verifyToken();
-  }, [token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const verifyToken = async () => {
     try {
@@ -44,11 +46,11 @@ export const ResetPasswordPage: React.FC = () => {
         setIsTokenValid(true);
       } else {
         showError('Reset link is invalid or expired');
-        setTimeout(() => navigate('/login'), 2000);
+        setTimeout(() => onBack(), 2000);
       }
     } catch (error: any) {
       showError(error.message || 'Failed to verify reset link');
-      setTimeout(() => navigate('/login'), 2000);
+      setTimeout(() => onBack(), 2000);
     } finally {
       setIsVerifying(false);
     }
@@ -89,7 +91,13 @@ export const ResetPasswordPage: React.FC = () => {
       if (result.success) {
         setResetSuccess(true);
         showSuccess('Password reset successfully!');
-        setTimeout(() => navigate('/login'), 3000);
+        setTimeout(() => {
+          if (onResetSuccess) {
+            onResetSuccess();
+          } else {
+            onBack();
+          }
+        }, 3000);
       } else {
         showError(result.message || 'Failed to reset password');
       }
@@ -126,11 +134,11 @@ export const ResetPasswordPage: React.FC = () => {
               Please request a new password reset link
             </p>
             <button
-              onClick={() => navigate('/forgot-password')}
+              onClick={onBack}
               className="reset-button"
               style={{ marginTop: '24px' }}
             >
-              Request New Link
+              Back to Login
             </button>
           </div>
         </div>
@@ -151,10 +159,10 @@ export const ResetPasswordPage: React.FC = () => {
               Your password has been updated. Redirecting to login...
             </p>
             <button
-              onClick={() => navigate('/login')}
+              onClick={onBack}
               className="reset-button"
             >
-              Go to Login
+              Back to Login
             </button>
           </div>
         </div>
@@ -166,7 +174,7 @@ export const ResetPasswordPage: React.FC = () => {
     <div className="reset-container">
       <div className="reset-card">
         <div className="reset-header">
-          <button onClick={() => navigate('/login')} className="reset-back-btn">
+          <button onClick={onBack} className="reset-back-btn">
             <ArrowLeft size={18} />
           </button>
           <h1>Reset Password</h1>
@@ -244,7 +252,7 @@ export const ResetPasswordPage: React.FC = () => {
           </button>
         </form>
 
-        <button onClick={() => navigate('/login')} className="reset-link-button">
+        <button onClick={onBack} className="reset-link-button">
           Back to Login
         </button>
       </div>

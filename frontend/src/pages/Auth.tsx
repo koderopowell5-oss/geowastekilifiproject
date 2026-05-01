@@ -515,7 +515,7 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
 
   // ─── Render reset password page ───
   if (currentPage === 'reset-password') {
-    return <ResetPasswordPage />;
+    return <ResetPasswordPage onBack={() => setCurrentPage('login')} />;
   }
 
   // ─── Render admin login page ───
