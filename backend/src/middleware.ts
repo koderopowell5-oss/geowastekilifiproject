@@ -13,6 +13,7 @@ export interface AuthRequest extends Request {
     email: string;
     name: string;
     role: string;
+    account_type?: 'admin' | 'enumerator';
     permissions?: Record<string, boolean>;
   };
 }
@@ -51,6 +52,7 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
         email: 'admin@geowaste.local',
         name: 'Administrator',
         role: 'admin',
+        account_type: 'admin',
         permissions: {},
       };
       return next();
@@ -58,7 +60,7 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
 
     // Fetch user with permissions from database
     const result = await pool.query(
-      'SELECT id, email, name, role, permissions FROM enumerators WHERE email = $1',
+      'SELECT id, email, name, role, account_type, permissions FROM enumerators WHERE email = $1',
       [identifier]
     );
 
@@ -75,6 +77,7 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
       email: user.email,
       name: user.name,
       role: user.role,
+      account_type: user.account_type,
       permissions: user.permissions || {},
     };
 

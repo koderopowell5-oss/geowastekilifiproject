@@ -12,6 +12,7 @@ import { WasteSiteRecord } from '../../../types';
 import { FloatingTabBar } from './FloatingTabBar';
 import { ProfileTab } from './ProfileTab';
 import { EnumeratorsPage } from './EnumeratorsPage';
+import { EnumeratorManagement } from './EnumeratorManagementPanel';
 import { RecordsPage } from './RecordsPage';
 import { SurveysManagementPage } from './SurveysManagementPage';
 
@@ -565,7 +566,11 @@ export const AdminDashboard: React.FC = () => {
               id: 'enumerators',
               label: 'Team',
               icon: <Users size={20} />,
-              content: <EnumeratorsPage sites={sites} />,
+              content: (
+                <div style={{ maxWidth: 960, margin: '0 auto', padding: '36px 24px 100px' }}>
+                  <EnumeratorManagement />
+                </div>
+              ),
             },
             {
               id: 'surveys',

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { ForgotPasswordPage } from './ForgotPasswordPage';
 import { ResetPasswordPage } from './ResetPasswordPage';
-import { SignupPage } from './SignupPage';
+import { AdminSetup } from './AdminSetup';
 
 // ─── Shared CSS ───────────────────────────────────────────────────────────────
 
@@ -417,7 +417,7 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
                 Forgot Password?
               </button>
               <button className="auth-action-btn" onClick={() => setCurrentPage('signup')} disabled={isLoading}>
-                <UserPlus size={15} /> Create Account
+                <ShieldCheck size={15} /> Register as Admin
               </button>
               <button className="auth-action-btn" onClick={() => setCurrentPage('admin')} disabled={isLoading}>
                 <ShieldCheck size={15} /> Admin Login
@@ -546,9 +546,9 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
     );
   }
 
-  // ─── Render signup page ───
+  // ─── Render admin setup page ───
   if (currentPage === 'signup') {
-    return <SignupPage onBackToLogin={() => setCurrentPage('login')} />;
+    return <AdminSetup onBackToLogin={() => setCurrentPage('login')} />;
   }
 
   return null;

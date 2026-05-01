@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
+import bcrypt from 'bcrypt';
 import { WasteService } from './service';
 import { AuthService } from './authService';
 import { PasswordResetService } from './passwordResetService';
@@ -150,10 +151,11 @@ router.delete('/auth/enumerators/:id', authMiddleware, requireAdmin, async (req:
 });
 
 /**
- * POST /api/auth/otp/request
- * Request OTP for signup - saves pending signup and sends OTP email
+ * POST /api/auth/register
+ * Admin-only registration (creates admin account)
+ * KoBo Collect model: Admins self-register, then create enumerators
  */
-router.post('/auth/otp/request', async (req: Request, res: Response) => {
+router.post('/auth/register', async (req: Request, res: Response) => {
   try {
     const { email, password, name, ward, phone } = req.body;
 
@@ -191,22 +193,46 @@ router.post('/auth/otp/request', async (req: Request, res: Response) => {
       } as ApiResponse);
     }
 
-    // Save pending signup data
-    await otpService.savePendingSignup({ email, password, name, ward, phone });
+    // Create admin account directly (no OTP)
+    const admin = await AuthService.createAdminAccount({
+      email,
+      password,
+      name,
+      ward,
+      phone,
+      account_type: 'admin'
+    });
 
-    // Generate and send OTP
-    await otpService.generateAndSendOTP(email);
+    // Create default project for admin
+    try {
+      const defaultProject = await ProjectService.createProject(
+        `${name}'s Workspace`,
+        `Default workspace for ${name}`,
+        admin.id
+      );
+      await ProjectService.setDefaultProject(admin.id, defaultProject.id);
+    } catch (projectError: any) {
+      console.warn('Could not create default project:', projectError.message);
+      // Don't fail registration if project creation fails
+    }
 
-    return res.status(200).json({
+    // Get projects for response
+    const projects = await ProjectService.getEnumeratorProjects(admin.id);
+
+    return res.status(201).json({
       success: true,
-      message: 'OTP sent to your email. Please check your inbox.',
-      data: { email },
+      message: 'Admin account created successfully',
+      data: {
+        user: admin,
+        projects,
+        current_project_id: admin.primary_project_id || (projects.length > 0 ? projects[0].project.id : null),
+      },
     } as ApiResponse);
   } catch (error: any) {
-    console.error('Error requesting OTP:', error);
+    console.error('Error registering admin:', error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Failed to request OTP',
+      message: error.message || 'Failed to register admin',
       error: error.message,
     } as ApiResponse);
   }
@@ -2317,6 +2343,316 @@ router.post('/auth/switch-project', authMiddleware, async (req: Request, res: Re
     return res.status(500).json({
       success: false,
       message: error.message || 'Failed to switch project',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+// ============================================================================
+// ADMIN ENUMERATOR MANAGEMENT ROUTES (KoBo Collect Model)
+// ============================================================================
+
+/**
+ * POST /api/admin/enumerators
+ * Admin creates a new enumerator account
+ * Only admins can create enumerator accounts
+ */
+router.post('/admin/enumerators', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { email, password, name, ward, phone, project_id, role_id } = req.body;
+    const authReq = req as AuthRequest;
+
+    // Verify requester is admin
+    if (authReq.user.account_type !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can create enumerator accounts',
+      } as ApiResponse);
+    }
+
+    if (!email || !password || !name || !ward || !phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields',
+        error: 'email, password, name, ward, phone are required',
+      } as ApiResponse);
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters',
+      } as ApiResponse);
+    }
+
+    // Create enumerator account
+    const enumerator = await AuthService.createEnumeratorAccount(
+      { email, password, name, ward, phone },
+      authReq.user.id
+    );
+
+    // Assign to project if provided
+    if (project_id) {
+      try {
+        // Verify admin has access to this project
+        const hasAccess = await ProjectService.hasProjectAccess(authReq.user.id, project_id);
+        if (!hasAccess) {
+          return res.status(403).json({
+            success: false,
+            message: 'You do not have access to this project',
+          } as ApiResponse);
+        }
+
+        const assignedRole = role_id || 3; // Default to data_collector
+        await ProjectService.grantProjectAccess(enumerator.id, project_id, assignedRole);
+      } catch (projectError: any) {
+        console.warn('Could not assign to project:', projectError.message);
+        // Don't fail if project assignment fails
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Enumerator account created successfully',
+      data: {
+        enumerator: enumerator,
+        credentials: {
+          email: enumerator.email,
+          password: password, // Return password once for admin to share
+          message: 'Please share these credentials securely with the enumerator',
+        },
+      },
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error creating enumerator:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create enumerator',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/admin/enumerators
+ * Admin lists all enumerators they've created
+ */
+router.get('/admin/enumerators', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthRequest;
+
+    // Verify requester is admin
+    if (authReq.user.account_type !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can access this endpoint',
+      } as ApiResponse);
+    }
+
+    const result = await pool.query(
+      `SELECT e.id, e.email, e.name, e.ward, e.phone, e.status, e.account_type, e.created_at
+       FROM enumerators e
+       JOIN enumerator_credentials ec ON e.id = ec.enumerator_id
+       WHERE ec.created_by_id = $1
+       ORDER BY e.created_at DESC`,
+      [authReq.user.id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Enumerators retrieved successfully',
+      data: result.rows,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error fetching enumerators:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch enumerators',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * PUT /api/admin/enumerators/:id/reset-password
+ * Admin resets an enumerator's password
+ */
+router.put('/admin/enumerators/:id/reset-password', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { new_password } = req.body;
+    const authReq = req as AuthRequest;
+
+    // Verify requester is admin
+    if (authReq.user.account_type !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can reset passwords',
+      } as ApiResponse);
+    }
+
+    if (!new_password || new_password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters',
+      } as ApiResponse);
+    }
+
+    // Verify this is an enumerator the admin created
+    const enumeratorCheck = await pool.query(
+      `SELECT 1 FROM enumerator_credentials 
+       WHERE enumerator_id = $1 AND created_by_id = $2`,
+      [id, authReq.user.id]
+    );
+
+    if (enumeratorCheck.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only reset passwords for enumerators you created',
+      } as ApiResponse);
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(new_password, 10);
+
+    // Update password
+    const result = await pool.query(
+      `UPDATE enumerators SET password = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING id, email, name, status`,
+      [hashedPassword, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Enumerator not found',
+      } as ApiResponse);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password reset successfully',
+      data: {
+        enumerator: result.rows[0],
+        new_credentials: {
+          email: result.rows[0].email,
+          password: new_password,
+          message: 'Share this new password securely with the enumerator',
+        },
+      },
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error resetting password:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to reset password',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * DELETE /api/admin/enumerators/:id
+ * Admin deactivates an enumerator account
+ */
+router.delete('/admin/enumerators/:id', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const authReq = req as AuthRequest;
+
+    // Verify requester is admin
+    if (authReq.user.account_type !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can deactivate accounts',
+      } as ApiResponse);
+    }
+
+    // Verify this is an enumerator the admin created
+    const enumeratorCheck = await pool.query(
+      `SELECT 1 FROM enumerator_credentials 
+       WHERE enumerator_id = $1 AND created_by_id = $2`,
+      [id, authReq.user.id]
+    );
+
+    if (enumeratorCheck.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only manage enumerators you created',
+      } as ApiResponse);
+    }
+
+    // Soft delete by setting status to inactive
+    const result = await pool.query(
+      `UPDATE enumerators SET status = 'inactive', updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, email, name, status`,
+      [id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Enumerator account deactivated',
+      data: result.rows[0],
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error deactivating enumerator:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to deactivate enumerator',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/admin/projects/:project_id/assign-enumerator
+ * Admin assigns an enumerator to a project with a role
+ */
+router.post('/admin/projects/:project_id/assign-enumerator', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { project_id } = req.params;
+    const { enumerator_id, role_id } = req.body;
+    const authReq = req as AuthRequest;
+
+    // Verify requester is admin
+    if (authReq.user.account_type !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can assign enumerators',
+      } as ApiResponse);
+    }
+
+    if (!enumerator_id || !role_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'enumerator_id and role_id are required',
+      } as ApiResponse);
+    }
+
+    // Verify admin has access to this project
+    const hasAccess = await ProjectService.hasProjectAccess(authReq.user.id, project_id);
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this project',
+      } as ApiResponse);
+    }
+
+    // Assign enumerator to project
+    await ProjectService.grantProjectAccess(enumerator_id, project_id, role_id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Enumerator assigned to project successfully',
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error assigning enumerator:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to assign enumerator',
       error: error.message,
     } as ApiResponse);
   }

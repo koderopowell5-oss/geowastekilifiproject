@@ -17,6 +17,7 @@ export interface Enumerator {
   phone: string;
   role: string;
   status: string;
+  account_type: 'admin' | 'enumerator';
   profile_picture_url?: string;
   primary_project_id?: string;
   created_at: string;
@@ -58,7 +59,7 @@ export class AuthService {
     const result = await pool.query(
       `INSERT INTO enumerators (email, password, name, ward, phone, role, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, email, name, ward, phone, role, status, created_at, updated_at`,
+       RETURNING id, email, name, ward, phone, role, status, account_type, created_at, updated_at`,
       [email, hashedPassword, name, ward, phone, 'enumerator', 'active']
     );
 
@@ -66,11 +67,87 @@ export class AuthService {
   }
 
   /**
+   * Create admin account (admin self-registration)
+   */
+  static async createAdminAccount(data: EnumeratorData & { account_type: 'admin' }): Promise<Enumerator> {
+    const { email, password, name, ward, phone, account_type } = data;
+
+    // Check if email already exists
+    const existingUser = await pool.query(
+      'SELECT id FROM enumerators WHERE email = $1',
+      [email]
+    );
+
+    if (existingUser.rows.length > 0) {
+      throw new Error('Email already registered');
+    }
+
+    // Hash the password
+    const hashedPassword = await this.hashPassword(password);
+
+    // Insert new admin account
+    const result = await pool.query(
+      `INSERT INTO enumerators (email, password, name, ward, phone, role, status, account_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, email, name, ward, phone, role, status, account_type, created_at, updated_at`,
+      [email, hashedPassword, name, ward, phone, 'admin', 'active', account_type]
+    );
+
+    return result.rows[0] as Enumerator;
+  }
+
+  /**
+   * Create enumerator account (admin creates for team member)
+   */
+  static async createEnumeratorAccount(
+    data: EnumeratorData,
+    created_by_id: number
+  ): Promise<Enumerator> {
+    const { email, password, name, ward, phone } = data;
+
+    // Check if email already exists
+    const existingUser = await pool.query(
+      'SELECT id FROM enumerators WHERE email = $1',
+      [email]
+    );
+
+    if (existingUser.rows.length > 0) {
+      throw new Error('Email already registered');
+    }
+
+    // Hash the password
+    const hashedPassword = await this.hashPassword(password);
+
+    // Insert new enumerator
+    const result = await pool.query(
+      `INSERT INTO enumerators (email, password, name, ward, phone, role, status, account_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, email, name, ward, phone, role, status, account_type, created_at, updated_at`,
+      [email, hashedPassword, name, ward, phone, 'enumerator', 'active', 'enumerator']
+    );
+
+    const enumerator = result.rows[0] as Enumerator;
+
+    // Track who created this enumerator
+    try {
+      await pool.query(
+        `INSERT INTO enumerator_credentials (enumerator_id, created_by_id)
+         VALUES ($1, $2)`,
+        [enumerator.id, created_by_id]
+      );
+    } catch (error) {
+      console.warn('Could not track enumerator creation:', error);
+    }
+
+    return enumerator;
+  }
+
+  /**
    * Get enumerator by email and password (login)
    */
   static async authenticateEnumerator(email: string, password: string): Promise<Enumerator> {
     const result = await pool.query(
-      'SELECT id, email, password, name, ward, phone, role, status, created_at, updated_at FROM enumerators WHERE email = $1',
+      'SELECT id, email, password, name, ward, phone, role, status, account_type, primary_project_id, created_at, updated_at FROM enumerators WHERE email = $1',
       [email]
     );
 
@@ -95,7 +172,7 @@ export class AuthService {
    */
   static async getEnumeratorByEmail(email: string): Promise<Enumerator | null> {
     const result = await pool.query(
-      'SELECT id, email, name, ward, phone, role, status, created_at, updated_at FROM enumerators WHERE email = $1',
+      'SELECT id, email, name, ward, phone, role, status, account_type, primary_project_id, created_at, updated_at FROM enumerators WHERE email = $1',
       [email]
     );
 
@@ -107,7 +184,7 @@ export class AuthService {
    */
   static async getAllEnumerators(): Promise<Enumerator[]> {
     const result = await pool.query(
-      'SELECT id, email, name, ward, phone, role, status, created_at, updated_at FROM enumerators ORDER BY created_at DESC'
+      'SELECT id, email, name, ward, phone, role, status, account_type, primary_project_id, created_at, updated_at FROM enumerators ORDER BY created_at DESC'
     );
 
     return result.rows as Enumerator[];
