@@ -3,6 +3,8 @@
  * Handles image uploads to backend for secure Cloudinary storage
  */
 
+import { API_BASE_URL } from '../config/api';
+
 export class CloudinaryService {
   /**
    * Upload image via backend to Cloudinary
@@ -54,8 +56,7 @@ export class CloudinaryService {
         const formData = new FormData();
         formData.append('image', file);
 
-        const apiUrl = process.env.REACT_APP_API_URL || 'https://geowastekilifiproject.onrender.com/api';
-        xhr.open('POST', `${apiUrl}/upload/image`);
+        xhr.open('POST', `${API_BASE_URL}/api/upload/image`);
         xhr.send(formData);
       });
     } catch (error: any) {

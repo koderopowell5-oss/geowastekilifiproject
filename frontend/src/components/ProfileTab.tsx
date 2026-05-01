@@ -3,6 +3,7 @@ import { LogOut, User, Settings, Phone, Mail, MapPin, Shield, ArrowLeft, Upload,
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { GeneralSettings } from './GeneralSettings';
+import { buildApiUrl } from '../config/api';
 
 interface ProfileTabProps {
   onLogout?: () => void;
@@ -43,7 +44,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onLogout, showSettings: 
       const formData = new FormData();
       formData.append('image', file);
 
-      const response = await fetch('/api/profile/picture', {
+      const response = await fetch(buildApiUrl('/profile/picture'), {
         method: 'POST',
         body: formData,
         headers: {
@@ -55,7 +56,6 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onLogout, showSettings: 
         throw new Error('Failed to upload profile picture');
       }
 
-      const result = await response.json();
       showSuccess('Profile picture updated successfully');
       // Refresh the page to show new picture
       window.location.reload();

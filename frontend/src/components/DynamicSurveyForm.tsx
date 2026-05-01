@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, MapPin, AlertCircle, Check, Loader } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
+import { buildApiUrl } from '../config/api';
 
 export interface FormField {
   id: string;
@@ -121,7 +122,7 @@ export const DynamicSurveyForm: React.FC<DynamicSurveyFormProps> = ({
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/surveys/${surveyId}/submit`, {
+      const response = await fetch(buildApiUrl(`/surveys/${surveyId}/submit`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -167,7 +168,7 @@ export const DynamicSurveyForm: React.FC<DynamicSurveyFormProps> = ({
       const formDataToSend = new FormData();
       formDataToSend.append('file', file);
 
-      const response = await fetch('/api/upload-image', {
+      const response = await fetch(buildApiUrl('/upload-image'), {
         method: 'POST',
         body: formDataToSend,
         headers: {

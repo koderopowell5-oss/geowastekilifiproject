@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import * as Express from 'express';
 import { pool } from './db';
 import { ApiResponse } from './types';
 
@@ -7,7 +6,7 @@ export interface AuthRequest extends Request {
   params: any;
   body: any;
   headers: any;
-  file?: Express.Multer.File;
+  file?: any; // Multer file object
   query: Record<string, string | string[] | undefined>;
   user?: {
     id: number;

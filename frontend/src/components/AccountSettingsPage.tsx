@@ -40,7 +40,7 @@ export const AccountSettingsPage: React.FC = () => {
     try {
       // In a real app, fetch from /api/profile endpoint
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/profile', {
+      const response = await fetch(buildApiUrl('/profile'), {
         headers: { 'Authorization': `Bearer ${token}` },
       });
 
@@ -64,7 +64,7 @@ export const AccountSettingsPage: React.FC = () => {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/account/delete', {
+      const response = await fetch(buildApiUrl('/account/delete'), {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -113,12 +113,9 @@ export const AccountSettingsPage: React.FC = () => {
     setIsChangingPassword(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/account/change-password', {
+      const response = await fetch(buildApiUrl('/account/change-password'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        ...getFetchOptions(),
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 

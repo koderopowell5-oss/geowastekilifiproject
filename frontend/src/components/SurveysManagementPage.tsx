@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
 import { SurveyBuilder, SurveyFormConfig } from './SurveyBuilder';
+import { buildApiUrl, getFetchOptions } from '../config/api';
 
 interface Survey {
   id: number;
@@ -41,10 +42,8 @@ export const SurveysManagementPage: React.FC = () => {
   const fetchSurveys = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/surveys', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
+      const response = await fetch(buildApiUrl('/surveys'), {
+        ...getFetchOptions(),
       });
 
       if (!response.ok) throw new Error('Failed to fetch surveys');
@@ -71,12 +70,9 @@ export const SurveysManagementPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/surveys', {
+      const response = await fetch(buildApiUrl('/surveys'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
+        ...getFetchOptions(),
         body: JSON.stringify({
           title: editingSurvey.title,
           description: editingSurvey.description,
@@ -103,11 +99,9 @@ export const SurveysManagementPage: React.FC = () => {
   const handleDeleteSurvey = async (id: number) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/surveys/${id}`, {
+      const response = await fetch(buildApiUrl(`/surveys/${id}`), {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
+        ...getFetchOptions(),
       });
 
       if (!response.ok) throw new Error('Failed to delete survey');
@@ -124,7 +118,7 @@ export const SurveysManagementPage: React.FC = () => {
 
   const handleExportSurvey = async (id: number) => {
     try {
-      const response = await fetch(`/api/surveys/${id}/export`);
+      const response = await fetch(buildApiUrl(`/surveys/${id}/export`));
       if (!response.ok) throw new Error('Export failed');
 
       const json = await response.text();
@@ -146,12 +140,9 @@ export const SurveysManagementPage: React.FC = () => {
     reader.onload = async (e) => {
       try {
         const json = e.target?.result as string;
-        const response = await fetch('/api/surveys/import', {
+        const response = await fetch(buildApiUrl('/surveys/import'), {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
+          ...getFetchOptions(),
           body: JSON.stringify({ jsonData: json }),
         });
 

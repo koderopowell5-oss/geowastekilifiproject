@@ -1,7 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { WasteSiteRecord, ApiResponse } from '../../../types';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://geowastekilifiproject.onrender.com/api';
+import { API_BASE_URL } from '../config/api';
 
 class WasteApiService {
   private api: AxiosInstance;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, Loader2, ArrowLeft, Eye, EyeOff, Mail, Lock, User, Phone, MapPin, CheckCircle, ChevronDown } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
+import { buildApiUrl } from '../config/api';
 
 interface SignupPageProps {
   onBackToLogin: () => void;
@@ -12,7 +13,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
   // Step 1: User enters registration details
   const [step, setStep] = useState<'details' | 'otp'>('details');
   const [isLoading, setIsLoading] = useState(false);
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess } = useNotification();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -70,7 +71,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/otp/request', {
+      const response = await fetch(buildApiUrl('/auth/otp/request'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -103,7 +104,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/otp/verify', {
+      const response = await fetch(buildApiUrl('/auth/otp/verify'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email, otp }),
@@ -132,7 +133,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
   const handleResendOTP = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/otp/resend', {
+      const response = await fetch(buildApiUrl('/auth/otp/resend'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email }),

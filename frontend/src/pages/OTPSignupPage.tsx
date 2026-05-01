@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, Phone, MapPin, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
+import { buildApiUrl } from '../config/api';
 
 const WARDS = ['Mombasa', 'Kilifi', 'Malindi', 'Lamu', 'Tanariver'];
 
@@ -68,7 +69,7 @@ export const OTPSignupPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/otp/request', {
+      const response = await fetch(buildApiUrl('/auth/otp/request'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, name, ward, phone }),
@@ -100,7 +101,7 @@ export const OTPSignupPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/otp/verify', {
+      const response = await fetch(buildApiUrl('/auth/otp/verify'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp }),
@@ -128,7 +129,7 @@ export const OTPSignupPage: React.FC = () => {
   const handleResendOTP = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/otp/resend', {
+      const response = await fetch(buildApiUrl('/auth/otp/resend'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),

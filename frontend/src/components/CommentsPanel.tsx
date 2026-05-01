@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNotification } from '../context/NotificationContext';
 import { useTranslation } from '../context/I18nContext';
 import { Send, Trash2, Loader } from 'lucide-react';
+import { buildApiUrl } from '../config/api';
 
 interface Comment {
   id: number;
@@ -28,8 +29,6 @@ export function CommentsPanel({ recordId, userRole, userId }: CommentsPanelProps
   const [commentType, setCommentType] = useState<'general' | 'feedback' | 'flag' | 'correction'>('general');
   const [submitting, setSubmitting] = useState(false);
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'https://geowastekilifiproject.onrender.com/api';
-
   useEffect(() => {
     loadComments();
   }, [recordId]);
@@ -37,7 +36,7 @@ export function CommentsPanel({ recordId, userRole, userId }: CommentsPanelProps
   const loadComments = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${apiUrl}/records/${recordId}/comments`);
+      const response = await fetch(buildApiUrl(`/records/${recordId}/comments`));
       const result = await response.json();
 
       if (result.success) {
@@ -63,7 +62,7 @@ export function CommentsPanel({ recordId, userRole, userId }: CommentsPanelProps
       setSubmitting(true);
       const token = localStorage.getItem('authToken');
 
-      const response = await fetch(`${apiUrl}/records/${recordId}/comments`, {
+      const response = await fetch(buildApiUrl(`/records/${recordId}/comments`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -99,7 +98,7 @@ export function CommentsPanel({ recordId, userRole, userId }: CommentsPanelProps
     try {
       const token = localStorage.getItem('authToken');
 
-      const response = await fetch(`${apiUrl}/records/${recordId}/comments/${commentId}`, {
+      const response = await fetch(buildApiUrl(`/records/${recordId}/comments/${commentId}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

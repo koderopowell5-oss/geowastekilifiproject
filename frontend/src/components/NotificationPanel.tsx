@@ -36,7 +36,7 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, on
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/notifications?limit=10', {
+      const response = await fetch(buildApiUrl('/notifications?limit=10'), {
         headers: { 'Authorization': `Bearer ${token}` },
       });
 
@@ -56,7 +56,7 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, on
   const handleMarkAsRead = async (notificationId: number) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/notifications/${notificationId}/read`, {
+      const response = await fetch(buildApiUrl(`/notifications/${notificationId}/read`), {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -77,7 +77,7 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, on
   const handleClearAll = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/notifications', {
+      const response = await fetch(buildApiUrl('/notifications'), {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });

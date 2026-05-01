@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNotification } from '../context/NotificationContext';
 import { useTranslation } from '../context/I18nContext';
 import { Plus, Trash2, Edit2, Loader, ChevronDown } from 'lucide-react';
+import { buildApiUrl, getFetchOptions } from '../config/api';
 
 interface Assignment {
   id: number;
@@ -32,8 +33,6 @@ export function AssignmentsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'https://geowastekilifiproject.onrender.com/api';
-
   const [formData, setFormData] = useState({
     enumerator_id: '',
     ward: '',
@@ -54,7 +53,7 @@ export function AssignmentsPage() {
 
   const loadAssignments = async () => {
     try {
-      const response = await fetch(`${apiUrl}/assignments`);
+      const response = await fetch(buildApiUrl('/assignments'));
       const result = await response.json();
 
       if (result.success) {
@@ -70,7 +69,7 @@ export function AssignmentsPage() {
 
   const loadEnumerators = async () => {
     try {
-      const response = await fetch(`${apiUrl}/auth/enumerators`);
+      const response = await fetch(buildApiUrl('/auth/enumerators'));
       const result = await response.json();
 
       if (result.success) {
@@ -94,9 +93,9 @@ export function AssignmentsPage() {
       const token = localStorage.getItem('authToken');
 
       const method = editingId ? 'PATCH' : 'POST';
-      const url = editingId ? `${apiUrl}/assignments/${editingId}` : `${apiUrl}/assignments`;
+      const endpoint = editingId ? `/assignments/${editingId}` : '/assignments';
 
-      const response = await fetch(url, {
+      const response = await fetch(buildApiUrl(endpoint), {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -142,7 +141,7 @@ export function AssignmentsPage() {
     try {
       const token = localStorage.getItem('authToken');
 
-      const response = await fetch(`${apiUrl}/assignments/${id}`, {
+      const response = await fetch(buildApiUrl(`/assignments/${id}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

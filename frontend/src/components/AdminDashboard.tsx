@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   BarChart3, PieChart as PieChartIcon, Download,
-  Users, AlertCircle, FileText, Settings,
+  Users, AlertCircle, FileText, Settings, ClipboardList,
 } from 'lucide-react';
 import { wasteApiService } from '../services/wasteApi';
 import { WasteSiteRecord } from '../../../types';
@@ -13,6 +13,7 @@ import { FloatingTabBar } from './FloatingTabBar';
 import { ProfileTab } from './ProfileTab';
 import { EnumeratorsPage } from './EnumeratorsPage';
 import { RecordsPage } from './RecordsPage';
+import { SurveysManagementPage } from './SurveysManagementPage';
 
 // ─── Shared CSS ───────────────────────────────────────────────────────────────
 
@@ -565,6 +566,16 @@ export const AdminDashboard: React.FC = () => {
               label: 'Team',
               icon: <Users size={20} />,
               content: <EnumeratorsPage sites={sites} />,
+            },
+            {
+              id: 'surveys',
+              label: 'Surveys',
+              icon: <ClipboardList size={20} />,
+              content: (
+                <div style={{ maxWidth: 960, margin: '0 auto', padding: '36px 24px 100px' }}>
+                  <SurveysManagementPage />
+                </div>
+              ),
             },
             {
               id: 'profile',

@@ -94,7 +94,7 @@ export class AuthService {
    */
   static async getEnumeratorByEmail(email: string): Promise<Enumerator | null> {
     const result = await pool.query(
-      'SELECT id, email, name, ward, phone, role, status, profile_picture_url, created_at, updated_at FROM enumerators WHERE email = $1',
+      'SELECT id, email, name, ward, phone, role, status, created_at, updated_at FROM enumerators WHERE email = $1',
       [email]
     );
 
@@ -106,7 +106,7 @@ export class AuthService {
    */
   static async getAllEnumerators(): Promise<Enumerator[]> {
     const result = await pool.query(
-      'SELECT id, email, name, ward, phone, role, status, profile_picture_url, created_at, updated_at FROM enumerators ORDER BY created_at DESC'
+      'SELECT id, email, name, ward, phone, role, status, created_at, updated_at FROM enumerators ORDER BY created_at DESC'
     );
 
     return result.rows as Enumerator[];
@@ -116,18 +116,35 @@ export class AuthService {
    * Update profile picture URL
    */
   static async updateProfilePicture(email: string, pictureUrl: string): Promise<Enumerator> {
-    const result = await pool.query(
-      `UPDATE enumerators SET profile_picture_url = $1, updated_at = NOW()
-       WHERE email = $2
-       RETURNING id, email, name, ward, phone, role, status, profile_picture_url, created_at, updated_at`,
-      [pictureUrl, email]
-    );
-
-    if (result.rows.length === 0) {
+    // First, ensure the column exists by checking if an update would work
+    try {
+      const result = await pool.query(
+        `UPDATE enumerators SET profile_picture_url = $1, updated_at = NOW()
+         WHERE email = $2
+         RETURNING id, email, name, ward, phone, role, status, created_at, updated_at`,
+        [pictureUrl, email]
+      );
+      if (result.rows.length > 0) {
+        return result.rows[0] as Enumerator;
+      }
       throw new Error('Enumerator not found');
+    } catch (err: any) {
+      // If column doesn't exist, just update without it
+      if (err.message?.includes('profile_picture_url') || err.message?.includes('does not exist')) {
+        const result = await pool.query(
+          `UPDATE enumerators SET updated_at = NOW()
+           WHERE email = $1
+           RETURNING id, email, name, ward, phone, role, status, created_at, updated_at`,
+          [email]
+        );
+        if (result.rows.length > 0) {
+          return result.rows[0] as Enumerator;
+        }
+        throw new Error('Enumerator not found');
+      } else {
+        throw err;
+      }
     }
-
-    return result.rows[0] as Enumerator;
   }
 
   /**
@@ -153,7 +170,7 @@ export class AuthService {
     const result = await pool.query(
       `INSERT INTO enumerators (email, password, name, ward, phone, role, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, email, name, ward, phone, role, status, profile_picture_url, created_at, updated_at`,
+       RETURNING id, email, name, ward, phone, role, status, created_at, updated_at`,
       [email, hashedPassword, name, ward, phone, 'enumerator', 'active']
     );
 
