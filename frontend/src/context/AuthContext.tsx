@@ -7,15 +7,12 @@ export interface Enumerator {
   email: string;
   ward: string;
   phone: string;
+  account_type: 'admin' | 'enumerator';
+  role?: string;
+  status?: string;
 }
 
-export interface Admin {
-  id: string;
-  username: string;
-  isAdmin: true;
-}
-
-export type AuthUser = Enumerator | Admin;
+export type AuthUser = Enumerator;
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -74,11 +71,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await wasteApiService.loginEnumerator(email, password);
       
       const enumerator: Enumerator = {
-        id: response.id,
-        name: response.name,
-        email: response.email,
-        ward: response.ward,
-        phone: response.phone,
+        id: response.user.id,
+        name: response.user.name,
+        email: response.user.email,
+        ward: response.user.ward,
+        phone: response.user.phone,
+        account_type: response.user.account_type || 'enumerator',
+        role: response.user.role,
+        status: response.user.status,
       };
 
       setUser(enumerator);
@@ -116,26 +116,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const adminLogin = async (username: string, password: string): Promise<void> => {
+  const adminLogin = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
     try {
-      // Hardcoded admin credentials
-      const ADMIN_USERNAME = 'kodero_admin';
-      const ADMIN_PASSWORD = '*Powell123!';
-
-      if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
-        throw new Error('Invalid admin username or password');
+      // Use unified login endpoint - backend will verify account_type
+      const response = await wasteApiService.loginEnumerator(email, password);
+      
+      // Verify this is an admin account
+      if (response.user.account_type !== 'admin') {
+        throw new Error('Only admin accounts can use admin login');
       }
-
-      const adminUser: Admin = {
-        id: 'admin-1',
-        username: ADMIN_USERNAME,
-        isAdmin: true,
+      
+      const admin: Enumerator = {
+        id: response.user.id,
+        name: response.user.name,
+        email: response.user.email,
+        ward: response.user.ward,
+        phone: response.user.phone,
+        account_type: 'admin',
+        role: response.user.role,
+        status: response.user.status,
       };
 
-      setUser(adminUser);
-      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(adminUser));
+      setUser(admin);
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(admin));
       localStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString());
+    } catch (error: any) {
+      throw new Error(error.message || 'Admin login failed');
     } finally {
       setIsLoading(false);
     }
@@ -147,7 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem(SESSION_TIMESTAMP_KEY);
   };
 
-  const isAdmin = user ? 'isAdmin' in user && user.isAdmin : false;
+  const isAdmin = user ? user.account_type === 'admin' : false;
 
   return (
     <AuthContext.Provider

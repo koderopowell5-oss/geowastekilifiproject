@@ -629,13 +629,41 @@ router.post('/waste', async (req: Request, res: Response) => {
  * GET /api/waste
  * Retrieve waste site records with pagination
  * Optional: filter by enumerator_email
+ * For enumerators: can only access their own records
+ * For admins: can access all records or filter by enumerator_email
  */
-router.get('/waste', async (req: Request, res: Response) => {
+router.get('/waste', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 1000;
     const offset = parseInt(req.query.offset as string) || 0;
     const enumeratorEmail = req.query.enumerator_email as string | undefined;
 
+    // Check user permissions
+    const isAdmin = req.user.account_type === 'admin';
+    const userEmail = req.user.email;
+
+    // Enumerators can only access their own records
+    if (!isAdmin) {
+      if (enumeratorEmail && enumeratorEmail !== userEmail) {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden: You can only access your own records',
+        } as ApiResponse);
+      }
+      // Force filter to current user's email for enumerators
+      const result = await WasteService.getWasteSitesByEnumerator(userEmail, limit, offset);
+      return res.status(200).json({
+        success: true,
+        message: 'Waste sites retrieved successfully',
+        data: {
+          records: result.records,
+          total: result.total,
+          pages: Math.ceil(result.total / limit),
+        },
+      } as ApiResponse);
+    }
+
+    // Admins can access all records or filter by enumerator_email
     let records: any[];
     let total: number;
 
@@ -673,8 +701,9 @@ router.get('/waste', async (req: Request, res: Response) => {
 /**
  * GET /api/waste/:id
  * Retrieve a single waste site record by ID
+ * Enumerators can only access their own records
  */
-router.get('/waste/:id', async (req: Request, res: Response) => {
+router.get('/waste/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -692,6 +721,14 @@ router.get('/waste/:id', async (req: Request, res: Response) => {
       return res.status(404).json({
         success: false,
         message: 'Waste site record not found',
+      } as ApiResponse);
+    }
+
+    // Check if enumerator can access this record
+    if (req.user.account_type !== 'admin' && record.enumerator_email !== req.user.email) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You can only access your own records',
       } as ApiResponse);
     }
 
@@ -751,10 +788,18 @@ router.delete('/waste/:id', authMiddleware, requireAdmin, async (req: AuthReques
 
 /**
  * GET /api/waste/stats/summary
- * Get statistics summary
+ * Get statistics summary (admin only)
  */
-router.get('/waste/stats/summary', async (req: Request, res: Response) => {
+router.get('/waste/stats/summary', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
+    // Admin-only endpoint
+    if (req.user.account_type !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: Only admins can access this endpoint',
+      } as ApiResponse);
+    }
+
     const stats = await WasteService.getStatistics();
 
     return res.status(200).json({

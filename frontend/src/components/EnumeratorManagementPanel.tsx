@@ -67,6 +67,8 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
 
   useEffect(() => {
     fetchEnumerators();
+    // Only fetch on mount - don't add fetchEnumerators to deps to avoid infinite loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCreateSubmit = async (e: React.FormEvent) => {

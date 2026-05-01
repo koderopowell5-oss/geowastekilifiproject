@@ -283,7 +283,7 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
   const [error, setError] = useState<string | null>(null);
 
   // Admin login state
-  const [adminUsername, setAdminUsername] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
@@ -313,14 +313,14 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
   const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAdminError(null);
-    if (!adminUsername || !adminPassword) {
-      const msg = 'Please enter both username and password.';
+    if (!adminEmail || !adminPassword) {
+      const msg = 'Please enter both email and password.';
       setAdminError(msg);
       showError(msg);
       return;
     }
     try {
-      await adminLogin(adminUsername, adminPassword);
+      await adminLogin(adminEmail, adminPassword);
       showSuccess('Admin login successful! 🎉');
     } catch (err: any) {
       const errMsg = err.message || 'Authentication failed. Please check your credentials.';
@@ -454,7 +454,7 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
                 onClick={() => {
                   setCurrentPage('login');
                   setAdminError(null);
-                  setAdminUsername('');
+                  setAdminEmail('');
                   setAdminPassword('');
                 }}
                 disabled={isLoading}
@@ -483,17 +483,17 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
 
             <form onSubmit={handleAdminSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
               <div className="auth-fields">
-                <FieldRow icon={<User size={14} />} label="Username" first>
+                <FieldRow icon={<Mail size={14} />} label="Email Address" first>
                   <input
                     className="auth-input"
-                    type="text"
-                    value={adminUsername}
+                    type="email"
+                    value={adminEmail}
                     onChange={(e) => {
-                      setAdminUsername(e.target.value);
+                      setAdminEmail(e.target.value);
                       setAdminError(null);
                     }}
                     disabled={isLoading}
-                    placeholder="admin"
+                    placeholder="admin@geowaste.com"
                   />
                 </FieldRow>
                 <FieldRow
