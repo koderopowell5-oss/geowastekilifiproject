@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, MapPin, Edit3, Settings, User } from 'lucide-react';
+import { Home, MapPin, Edit3, Settings, User, Bell } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { Dashboard } from './Dashboard';
@@ -8,6 +8,7 @@ import { WasteMap } from './WasteMap';
 import { ProfileTab } from './ProfileTab';
 import { FloatingTabBar } from './FloatingTabBar';
 import { CollectionsPage } from './CollectionsPage';
+import { NotificationPanel } from './NotificationPanel';
 
 // ─── Shared image banner ──────────────────────────────────────────────────────
 
@@ -44,6 +45,7 @@ export const EnumeratorDashboard: React.FC = () => {
   const [editingDraftData, setEditingDraftData] = useState<any>();
   const [showCollections, setShowCollections] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const { user, logout, isAdmin } = useAuth();
   const { showSuccess } = useNotification();
 
@@ -96,6 +98,13 @@ export const EnumeratorDashboard: React.FC = () => {
             </div>
 
             <div className="enum-appbar-right">
+              <button
+                className="enum-notif-btn"
+                onClick={() => setNotificationPanelOpen(true)}
+                aria-label="Open notifications"
+              >
+                <Bell size={18} color="#329D9C" strokeWidth={1.8} />
+              </button>
               <div className="enum-user-chip">
                 <div className="enum-user-avatar">
                   <User size={12} color="white" />
@@ -114,6 +123,9 @@ export const EnumeratorDashboard: React.FC = () => {
             <div className="enum-progress-fill" />
           </div>
         </header>
+
+        {/* ── Notification Panel ── */}
+        <NotificationPanel isOpen={notificationPanelOpen} onClose={() => setNotificationPanelOpen(false)} />
 
         {/* ── Tabs ── */}
         <FloatingTabBar
@@ -290,6 +302,26 @@ const css = `
   }
   @media (min-width: 480px) { .enum-logout-btn { display: block; } }
   .enum-logout-btn:hover { border-color: #fca5a5; color: #dc2626; }
+
+  /* ── Notification Bell Button ── */
+  .enum-notif-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    border: none;
+    background: rgba(50, 157, 156, 0.08);
+    color: var(--teal);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .enum-notif-btn:hover {
+    background: rgba(50, 157, 156, 0.15);
+  }
+  .enum-notif-btn:active {
+    transform: scale(0.95);
+  }
 
   .enum-progress-rail {
     max-width: 960px; margin: 0 auto;

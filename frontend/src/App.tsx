@@ -10,9 +10,13 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { useVersionCheck } from './hooks/useVersionCheck';
 import './App.css';
 
-const AppContent: React.FC = () => {
+const AppContent: React.FC<{
+  updateInfo: any;
+  isUpdateModalOpen: boolean;
+  closeUpdateModal: () => void;
+  dismissUpdate: () => void;
+}> = ({ updateInfo, isUpdateModalOpen, closeUpdateModal, dismissUpdate }) => {
   const { isAuthenticated, isLoading, isAdmin } = useAuth();
-  const { updateInfo, isUpdateModalOpen, closeUpdateModal, dismissUpdate } = useVersionCheck();
 
   // Show loading state
   if (isLoading) {
@@ -34,14 +38,6 @@ const AppContent: React.FC = () => {
   // Main app content for authenticated users
   return (
     <div className="App">
-      {/* Update Modal */}
-      <UpdateModal
-        isOpen={isUpdateModalOpen}
-        updateInfo={updateInfo}
-        onClose={closeUpdateModal}
-        onDismiss={dismissUpdate}
-      />
-
       {/* Admin Dashboard */}
       {isAdmin && <AdminDashboard />}
       
@@ -52,12 +48,28 @@ const AppContent: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  // Version check runs for ALL users, not just authenticated ones
+  const { updateInfo, isUpdateModalOpen, closeUpdateModal, dismissUpdate } = useVersionCheck();
+
   return (
     <ErrorBoundary>
+      {/* Update Modal - shown to all users */}
+      <UpdateModal
+        isOpen={isUpdateModalOpen}
+        updateInfo={updateInfo}
+        onClose={closeUpdateModal}
+        onDismiss={dismissUpdate}
+      />
+
       <AuthProvider>
         <NotificationProvider>
           <ToastContainer />
-          <AppContent />
+          <AppContent
+            updateInfo={updateInfo}
+            isUpdateModalOpen={isUpdateModalOpen}
+            closeUpdateModal={closeUpdateModal}
+            dismissUpdate={dismissUpdate}
+          />
         </NotificationProvider>
       </AuthProvider>
     </ErrorBoundary>

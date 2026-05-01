@@ -39,17 +39,18 @@ export const useVersionCheck = (): UseVersionCheckReturn => {
           const now = Date.now();
           const dayInMs = 24 * 60 * 60 * 1000;
 
-          if (
+          const shouldShow = 
             result.criticalUpdate ||
             result.isBelowMinimum ||
             !lastDismissTime ||
-            now - lastDismissTime > dayInMs
-          ) {
+            now - lastDismissTime > dayInMs;
+
+          if (shouldShow) {
             setIsUpdateModalOpen(true);
           }
         }
       } catch (error) {
-        console.error('[useVersionCheck] Error checking for updates:', error);
+        setUpdateInfo(null);
       } finally {
         setIsChecking(false);
       }
@@ -59,9 +60,13 @@ export const useVersionCheck = (): UseVersionCheckReturn => {
     checkUpdates();
 
     // Set up periodic checks every hour
-    const interval = setInterval(checkUpdates, 60 * 60 * 1000);
+    const interval = setInterval(() => {
+      checkUpdates();
+    }, 60 * 60 * 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [lastDismissTime]);
 
   const dismissUpdate = () => {

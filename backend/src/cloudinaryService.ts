@@ -144,6 +144,59 @@ export class CloudinaryUploadService {
 
     return { valid: true };
   }
+
+  /**
+   * Upload profile picture to Cloudinary
+   * @param fileBuffer - Image file buffer
+   * @param filename - Original filename
+   * @param email - User email for folder organization
+   * @returns Full upload response
+   */
+  async uploadProfilePicture(fileBuffer: Buffer, filename: string, email: string) {
+    if (!this.cloudName || !this.apiKey || !this.apiSecret) {
+      throw new Error('Cloudinary is not configured');
+    }
+
+    try {
+      const form = new FormData();
+      
+      // Add file to form
+      form.append('file', fileBuffer, filename);
+      form.append('api_key', this.apiKey);
+      form.append('timestamp', Math.floor(Date.now() / 1000).toString());
+      
+      // Set upload folder for profile pictures
+      const sanitizedEmail = email.replace(/[@.]/g, '_');
+      form.append('folder', `geowaste/profiles/${sanitizedEmail}`);
+      
+      // Set public ID for easier management
+      form.append('public_id', `profile_picture_${Date.now()}`);
+      
+      // Generate signature for secure upload
+      const signature = this.generateSignature(form);
+      form.append('signature', signature);
+
+      // Upload to Cloudinary
+      const response = await axios.post(
+        `https://api.cloudinary.com/v1_1/${this.cloudName}/image/upload`,
+        form,
+        {
+          headers: form.getHeaders(),
+          timeout: 30000,
+        }
+      );
+
+      if (!response.data.secure_url) {
+        throw new Error('No URL returned from Cloudinary');
+      }
+
+      console.log(`✓ Profile picture uploaded for ${email}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Profile picture upload error:', error.message);
+      throw new Error(`Profile picture upload failed: ${error.message}`);
+    }
+  }
 }
 
 export const cloudinaryUploadService = new CloudinaryUploadService();

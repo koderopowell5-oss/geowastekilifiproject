@@ -200,8 +200,20 @@ const css = `
   /* ── Body ── */
   .settings-body {
     width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
     padding: 24px 20px 60px;
     display: flex; flex-direction: column; gap: 24px;
+  }
+
+  /* Hide scrollbars in Capacitor app */
+  @supports (scrollbar-width: none) {
+    .settings-root {
+      scrollbar-width: none;
+    }
+    .settings-root::-webkit-scrollbar {
+      display: none;
+    }
   }
 
   /* ── Sections ── */

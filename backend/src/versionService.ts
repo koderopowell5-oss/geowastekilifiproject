@@ -15,12 +15,12 @@ export interface VersionInfo {
 
 class VersionServiceClass {
   // Current app version (update this when releasing new versions)
-  private currentVersion = '1.0.1';
-  private latestReleaseVersion = '1.0.1';
+  private currentVersion = '1.0.2';
+  private latestReleaseVersion = '1.0.3';
   private minRequiredVersion = '1.0.0';
   
   // APK download URL - adjust based on your deployment
-  private downloadUrl = process.env.APK_DOWNLOAD_URL || 'https://geowaste-kilifi.onrender.com/downloads/GeoWaste-Kilifi.apk';
+  private downloadUrl = process.env.APK_DOWNLOAD_URL || '/downloads/GeoWaste-Kilifi-v1.0.3.apk';
 
   /**
    * Get current version information
@@ -84,6 +84,8 @@ class VersionServiceClass {
    */
   private getReleaseNotes(): string {
     const releaseNotesMap: { [key: string]: string } = {
+      '1.0.3': '🚀 Major improvements and optimizations\n• Removed debug console logs for clean output\n• Extended session persistence to 30 days\n• Users stay logged in longer\n• Improved app stability\n• Enhanced performance',
+      '1.0.2': '✨ Settings page layout fixes\n• Fixed width inconsistency issues\n• Improved scrollbar visibility in app\n• Enhanced offline support with IndexedDB\n• Email notifications working (Gmail SMTP)\n• Better performance and stability',
       '1.0.1': '- Bug fixes and performance improvements\n- Enhanced map rendering',
       '1.0.0': '- Initial release\n- Waste site data collection\n- Real-time dashboard',
     };
@@ -96,7 +98,9 @@ class VersionServiceClass {
    */
   private getLatestReleaseDate(): string {
     const releaseDateMap: { [key: string]: string } = {
-      '1.0.1': new Date(2026, 4, 29).toISOString(), // Update with actual release date
+      '1.0.3': new Date(2026, 3, 29).toISOString(), // April 29, 2026
+      '1.0.2': new Date(2026, 3, 28).toISOString(), // April 28, 2026
+      '1.0.1': new Date(2026, 3, 27).toISOString(), // April 27, 2026
       '1.0.0': new Date(2026, 0, 1).toISOString(),
     };
 

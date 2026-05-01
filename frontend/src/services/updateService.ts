@@ -26,10 +26,13 @@ export interface VersionInfo {
 }
 
 class UpdateService {
-  private apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api';
+  // Try multiple URL sources: env var (preferred), then fallback
+  private apiBaseUrl = process.env.REACT_APP_API_URL || 
+                       process.env.REACT_APP_API_BASE_URL || 
+                       'http://localhost:5000/api';
   private lastCheckTime = 0;
   private checkInterval = 60 * 60 * 1000; // Check every hour
-  private currentVersion = '1.0.1'; // Should match package.json version
+  private currentVersion = '1.0.2'; // Should match package.json version
 
   /**
    * Get the current app version
@@ -47,7 +50,6 @@ class UpdateService {
 
     // Skip if we checked recently
     if (now - this.lastCheckTime < this.checkInterval) {
-      console.log('[Update Service] Skipping check - cache still valid');
       const cached = this.getCachedUpdateInfo();
       if (cached) {
         return cached;
@@ -55,13 +57,10 @@ class UpdateService {
     }
 
     try {
-      console.log('[Update Service] Checking for updates...');
+      const endpoint = `${this.apiBaseUrl}/version/check?version=${this.currentVersion}`;
       const response = await axios.get<any>(
-        `${this.apiBaseUrl}/version/check`,
+        endpoint,
         {
-          params: {
-            version: this.currentVersion,
-          },
           timeout: 5000, // 5 second timeout
         }
       );
@@ -80,22 +79,15 @@ class UpdateService {
         this.cacheUpdateInfo(result);
         this.lastCheckTime = now;
 
-        if (result.updateAvailable) {
-          console.log(`[Update Service] Update available: ${result.currentVersion} -> ${result.latestVersion}`);
-        }
-
         return result;
       }
 
       // Return cached or default if API response is invalid
       return this.getCachedUpdateInfo() || this.getDefaultUpdateInfo();
-    } catch (error) {
-      console.error('[Update Service] Error checking for updates:', error);
-      
+    } catch (error: any) {
       // Return cached data if available
       const cached = this.getCachedUpdateInfo();
       if (cached) {
-        console.log('[Update Service] Using cached update info');
         return cached;
       }
 

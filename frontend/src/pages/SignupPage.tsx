@@ -1,13 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertCircle, Loader2, ArrowLeft, Eye, EyeOff, Mail, Lock, User, Phone, MapPin, CheckCircle, ChevronDown } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useNotification } from '../context/NotificationContext';
 
 interface SignupPageProps {
   onBackToLogin: () => void;
 }
 
+const WARDS = ['Mombasa', 'Kilifi', 'Malindi', 'Lamu', 'Tanariver'];
+
 export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
-  const { signup, isLoading } = useAuth();
+  // Step 1: User enters registration details
+  const [step, setStep] = useState<'details' | 'otp'>('details');
+  const [isLoading, setIsLoading] = useState(false);
+  const { showSuccess, showError } = useNotification();
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -17,11 +23,21 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
     phone: '',
   });
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const wards = ['Mombasa', 'Kilifi', 'Malindi', 'Lamu', 'Tanariver'];
+  // Step 2: OTP verification
+  const [otp, setOtp] = useState('');
+  const [otpResendCountdown, setOtpResendCountdown] = useState(0);
+  const [otpAttempts, setOtpAttempts] = useState(0);
+
+  // Handle OTP resend countdown
+  useEffect(() => {
+    if (otpResendCountdown > 0) {
+      const timer = setTimeout(() => setOtpResendCountdown(otpResendCountdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [otpResendCountdown]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -44,7 +60,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
     return null;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     const validationError = validateForm();
     if (validationError) {
@@ -52,38 +68,190 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
       return;
     }
 
+    setIsLoading(true);
     try {
-      await signup(formData.name, formData.email, formData.password, formData.ward, formData.phone);
-      setSuccess(true);
+      const response = await fetch('/api/auth/otp/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.message || 'Failed to request OTP');
+      }
+
+      showSuccess('OTP sent to your email! Check your inbox.');
+      setStep('otp');
+      setOtpResendCountdown(60);
+      setOtpAttempts(0);
       setError(null);
-      setFormData({ name: '', email: '', password: '', confirmPassword: '', ward: '', phone: '' });
     } catch (err: any) {
-      setError(err.message || 'Signup failed. Please try again.');
+      setError(err.message || 'Failed to send OTP');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  if (success) {
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!otp || otp.length !== 6) {
+      setError('Please enter a valid 6-digit OTP');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/auth/otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email, otp }),
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        setOtpAttempts(otpAttempts + 1);
+        throw new Error(result.message || 'Invalid OTP');
+      }
+
+      const result = await response.json();
+      localStorage.setItem('token', result.data.id.toString());
+      localStorage.setItem('user', JSON.stringify(result.data));
+      
+      showSuccess('Account created successfully!');
+      // Reload to trigger login
+      window.location.href = '/dashboard';
+    } catch (err: any) {
+      setError(err.message || 'OTP verification failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/auth/otp/resend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email }),
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.message || 'Failed to resend OTP');
+      }
+
+      showSuccess('OTP resent to your email');
+      setOtpResendCountdown(60);
+      setOtp('');
+      setError(null);
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend OTP');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (step === 'otp') {
     return (
       <div className="min-h-screen bg-[#f0faf5] font-sans flex items-center justify-center p-4">
         <div className="w-full max-w-sm">
-          <div className="bg-white rounded-3xl border border-[#CFF4D2]/60 p-7 shadow-sm shadow-[#CFF4D2]/40 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-[#56C596] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#56C596]/20">
-              <CheckCircle size={30} className="text-white" />
+          {/* Back button */}
+          <button
+            onClick={() => {
+              setStep('details');
+              setOtp('');
+              setOtpAttempts(0);
+              setError(null);
+            }}
+            disabled={isLoading}
+            className="flex items-center gap-1.5 mb-8 text-[12px] font-semibold text-[#329D9C] hover:text-[#205072] transition-colors disabled:opacity-40 group"
+          >
+            <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-0.5" />
+            Back to details
+          </button>
+
+          {/* Card */}
+          <div className="bg-white rounded-3xl border border-[#CFF4D2]/60 p-7 shadow-sm shadow-[#CFF4D2]/40">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 rounded-2xl bg-[#56C596] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#56C596]/20">
+                <Mail size={30} className="text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-[#205072] mb-2">Verify Email</h2>
+              <p className="text-[13px] text-[#329D9C] font-medium mb-1">We sent a 6-digit OTP to</p>
+              <p className="text-[13px] font-bold text-[#205072]">{formData.email}</p>
             </div>
-            <h2 className="text-2xl font-bold text-[#205072] mb-3">Account Created!</h2>
-            <p className="text-[13px] text-[#329D9C] mb-6 leading-relaxed">
-              Welcome, <span className="font-bold">{formData.name}</span>! Your account has been successfully created.
-            </p>
-            <p className="text-[12px] text-gray-500 mb-6 leading-relaxed">
-              You can now sign in with your credentials to start collecting waste data.
-            </p>
-            <button
-              onClick={onBackToLogin}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#56C596] hover:bg-[#329D9C] text-white text-[13px] font-bold transition-all duration-200 shadow-sm shadow-[#56C596]/20 hover:shadow-[#329D9C]/20"
-            >
-              <ArrowLeft size={15} />
-              Back to Login
-            </button>
+
+            {/* Error */}
+            {error && (
+              <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-red-50 border border-red-100 mb-5">
+                <AlertCircle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                <p className="text-[12px] text-red-500 leading-relaxed">{error}</p>
+              </div>
+            )}
+
+            {/* OTP Attempts warning */}
+            {otpAttempts > 0 && otpAttempts < 5 && (
+              <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-yellow-50 border border-yellow-100 mb-5">
+                <AlertCircle size={14} className="text-yellow-400 shrink-0 mt-0.5" />
+                <p className="text-[12px] text-yellow-700 leading-relaxed">Attempts remaining: {5 - otpAttempts}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyOTP} className="space-y-4">
+              {/* OTP Input */}
+              <div>
+                <label className="block text-[11px] font-bold text-[#205072] mb-2 uppercase tracking-wider">
+                  Enter OTP Code
+                </label>
+                <input
+                  type="text"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  disabled={isLoading}
+                  placeholder="000000"
+                  maxLength={6}
+                  className="w-full px-4 py-4 rounded-xl border border-[#CFF4D2] bg-[#f0faf5] text-[#205072] text-[28px] font-bold placeholder-gray-300 focus:outline-none focus:border-[#329D9C] focus:ring-2 focus:ring-[#329D9C]/15 transition-all disabled:opacity-50 text-center tracking-widest font-mono"
+                />
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={isLoading || otp.length !== 6}
+                className="w-full mt-6 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-[#56C596] to-[#329D9C] hover:from-[#329D9C] hover:to-[#1f7b7a] text-white text-[13px] font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-[#56C596]/30 hover:shadow-[#329D9C]/40 hover:scale-105 active:scale-95"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={15} />
+                    Verify OTP
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Resend OTP */}
+            <div className="text-center mt-6 pt-6 border-t border-[#CFF4D2]/60">
+              {otpResendCountdown > 0 ? (
+                <p className="text-[12px] text-gray-400">Resend OTP in {otpResendCountdown}s</p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResendOTP}
+                  disabled={isLoading}
+                  className="text-[12px] font-semibold text-[#329D9C] hover:text-[#205072] transition-all duration-200 disabled:opacity-50"
+                >
+                  Didn't receive the code? Resend OTP
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -132,7 +300,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleRequestOTP} className="space-y-4">
             {/* Full Name */}
             <div>
               <label className="block text-[11px] font-bold text-[#205072] mb-2 uppercase tracking-wider">
@@ -192,7 +360,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
                   className="w-full pl-10 pr-10 py-3 rounded-xl border border-[#CFF4D2] bg-[#f0faf5] text-[#205072] text-[13px] font-medium focus:outline-none focus:border-[#329D9C] focus:ring-2 focus:ring-[#329D9C]/15 transition-all disabled:opacity-50 appearance-none cursor-pointer hover:border-[#329D9C]"
                 >
                   <option value="">Select a ward</option>
-                  {wards.map((ward) => (
+                  {WARDS.map((ward) => (
                     <option key={ward} value={ward}>
                       {ward}
                     </option>
@@ -294,12 +462,12 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
               {isLoading ? (
                 <>
                   <Loader2 size={15} className="animate-spin" />
-                  Creating Account…
+                  Sending OTP…
                 </>
               ) : (
                 <>
                   <CheckCircle size={15} />
-                  Create Account
+                  Continue with OTP
                 </>
               )}
             </button>

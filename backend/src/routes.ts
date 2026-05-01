@@ -4,6 +4,9 @@ import { WasteService } from './service';
 import { AuthService } from './authService';
 import { cloudinaryUploadService } from './cloudinaryService';
 import { emailService } from './emailService';
+import { otpService } from './otpService';
+import { notificationService } from './notificationService';
+import { surveyService, SurveyFormConfig } from './surveyService';
 import { ApiResponse, WasteSiteRecord, RecordComment, EnumeratorAssignment } from './types';
 import { authMiddleware, requireAdmin, requireSupervisor, AuthRequest } from './middleware';
 import { pool } from './db';
@@ -30,58 +33,15 @@ const upload = multer({
 
 /**
  * POST /api/auth/signup
- * Register a new enumerator
+ * DEPRECATED: Use /api/auth/otp/request instead
+ * Account creation is now STRICTLY OTP-verified only
  */
 router.post('/auth/signup', async (req: Request, res: Response) => {
-  try {
-    const { email, password, name, ward, phone } = req.body;
-
-    // Validate required fields
-    if (!email || !password || !name || !ward || !phone) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required fields',
-        error: 'email, password, name, ward, and phone are required',
-      } as ApiResponse);
-    }
-
-    // Validate email format
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid email format',
-      } as ApiResponse);
-    }
-
-    // Validate password length
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 6 characters',
-      } as ApiResponse);
-    }
-
-    const enumerator = await AuthService.registerEnumerator({
-      email,
-      password,
-      name,
-      ward,
-      phone,
-    });
-
-    return res.status(201).json({
-      success: true,
-      message: 'Enumerator registered successfully',
-      data: enumerator,
-    } as ApiResponse);
-  } catch (error: any) {
-    console.error('Error registering enumerator:', error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || 'Registration failed',
-      error: error.message,
-    } as ApiResponse);
-  }
+  return res.status(405).json({
+    success: false,
+    message: 'Direct signup is not allowed. Use OTP-based registration instead.',
+    error: 'Please use POST /api/auth/otp/request to start the registration process.',
+  } as ApiResponse);
 });
 
 /**
@@ -175,6 +135,258 @@ router.delete('/auth/enumerators/:id', authMiddleware, requireAdmin, async (req:
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/auth/otp/request
+ * Request OTP for signup - saves pending signup and sends OTP email
+ */
+router.post('/auth/otp/request', async (req: Request, res: Response) => {
+  try {
+    const { email, password, name, ward, phone } = req.body;
+
+    // Validate required fields
+    if (!email || !password || !name || !ward || !phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields',
+        error: 'email, password, name, ward, and phone are required',
+      } as ApiResponse);
+    }
+
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format',
+      } as ApiResponse);
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters',
+      } as ApiResponse);
+    }
+
+    // Check if email already exists
+    const existingUser = await AuthService.getEnumeratorByEmail(email);
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email already registered',
+      } as ApiResponse);
+    }
+
+    // Save pending signup data
+    await otpService.savePendingSignup({ email, password, name, ward, phone });
+
+    // Generate and send OTP
+    await otpService.generateAndSendOTP(email);
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent to your email. Please check your inbox.',
+      data: { email },
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error requesting OTP:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to request OTP',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/auth/otp/verify
+ * Verify OTP and complete registration
+ */
+router.post('/auth/otp/verify', async (req: Request, res: Response) => {
+  try {
+    const { email, otp } = req.body;
+
+    // Validate required fields
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields',
+        error: 'email and otp are required',
+      } as ApiResponse);
+    }
+
+    // Verify OTP
+    await otpService.verifyOTP(email, otp);
+
+    // Get verified signup data
+    const signupData = await otpService.getVerifiedSignupData(email);
+
+    if (!signupData) {
+      return res.status(400).json({
+        success: false,
+        message: 'Signup data not found or expired',
+      } as ApiResponse);
+    }
+
+    // Complete registration
+    const enumerator = await AuthService.completeOTPRegistration(signupData);
+
+    // Mark account as verified in database
+    await pool.query(
+      `UPDATE enumerators SET account_verification_completed = TRUE, verified_at = NOW() WHERE email = $1`,
+      [email]
+    );
+
+    // Send verification confirmation notification
+    try {
+      await notificationService.sendVerificationNotification(
+        email,
+        signupData.name,
+        otp
+      );
+    } catch (notificationError: any) {
+      console.error('Error sending verification notification:', notificationError.message);
+      // Don't fail the signup if notification fails
+    }
+
+    // Cleanup: delete from pending_signups and otp_verifications
+    await pool.query('DELETE FROM otp_verifications WHERE email = $1', [email]);
+    await pool.query('DELETE FROM pending_signups WHERE email = $1', [email]);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Email verified and account created successfully',
+      data: enumerator,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error verifying OTP:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'OTP verification failed',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/auth/otp/resend
+ * Resend OTP code
+ */
+router.post('/auth/otp/resend', async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    // Validate required fields
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required',
+      } as ApiResponse);
+    }
+
+    // Resend OTP
+    await otpService.resendOTP(email);
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP resent to your email',
+      data: { email },
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error resending OTP:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to resend OTP',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/profile/picture
+ * Upload profile picture
+ */
+router.post('/profile/picture', authMiddleware, upload.single('image'), async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided',
+      } as ApiResponse);
+    }
+
+    if (!req.user?.email) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      } as ApiResponse);
+    }
+
+    // Upload to Cloudinary
+    const uploadResult = await cloudinaryUploadService.uploadProfilePicture(
+      req.file.buffer,
+      req.file.originalname,
+      req.user.email
+    );
+
+    // Update user profile picture URL
+    const updatedUser = await AuthService.updateProfilePicture(
+      req.user.email,
+      uploadResult.secure_url
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile picture uploaded successfully',
+      data: updatedUser,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error uploading profile picture:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to upload profile picture',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/profile
+ * Get current user's profile
+ */
+router.get('/profile', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.email) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      } as ApiResponse);
+    }
+
+    const user = await AuthService.getEnumeratorByEmail(req.user.email);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      } as ApiResponse);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile retrieved successfully',
+      data: user,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error retrieving profile:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to retrieve profile',
       error: error.message,
     } as ApiResponse);
   }
@@ -975,6 +1187,592 @@ router.post('/upload/image', upload.single('image'), async (req: Request, res: R
     return res.status(500).json({
       success: false,
       message: 'Image upload failed',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * SURVEY MANAGEMENT ENDPOINTS
+ */
+
+/**
+ * GET /api/surveys
+ * Get all available surveys for authenticated user
+ */
+router.get('/surveys', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.email) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      } as ApiResponse);
+    }
+
+    const surveys = await surveyService.getAvailableSurveys(req.user.email);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Surveys retrieved successfully',
+      data: surveys,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error fetching surveys:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch surveys',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/surveys/default
+ * Get default survey
+ */
+router.get('/surveys/default', async (req: Request, res: Response) => {
+  try {
+    const survey = await surveyService.getDefaultSurvey();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Default survey retrieved',
+      data: survey,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error fetching default survey:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch default survey',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/surveys/:id
+ * Get survey by ID
+ */
+router.get('/surveys/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid survey ID',
+      } as ApiResponse);
+    }
+
+    const survey = await surveyService.getSurveyById(Number(id));
+
+    if (!survey) {
+      return res.status(404).json({
+        success: false,
+        message: 'Survey not found',
+      } as ApiResponse);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Survey retrieved successfully',
+      data: survey,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error fetching survey:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch survey',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/surveys
+ * Create new survey
+ */
+router.post('/surveys', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.email) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      } as ApiResponse);
+    }
+
+    const { title, formConfig, description, organization, isPublic } = req.body;
+
+    if (!title || !formConfig) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: title and formConfig',
+      } as ApiResponse);
+    }
+
+    const survey = await surveyService.createSurvey(
+      title,
+      formConfig as SurveyFormConfig,
+      req.user.email,
+      { description, organization, isPublic }
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Survey created successfully',
+      data: survey,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error creating survey:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create survey',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * PUT /api/surveys/:id
+ * Update survey
+ */
+router.put('/surveys/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid survey ID',
+      } as ApiResponse);
+    }
+
+    const survey = await surveyService.updateSurvey(Number(id), updates);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Survey updated successfully',
+      data: survey,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error updating survey:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update survey',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * DELETE /api/surveys/:id
+ * Delete survey
+ */
+router.delete('/surveys/:id', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid survey ID',
+      } as ApiResponse);
+    }
+
+    const deleted = await surveyService.deleteSurvey(Number(id));
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'Survey not found',
+      } as ApiResponse);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Survey deleted successfully',
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error deleting survey:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to delete survey',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/surveys/:id/submit
+ * Submit survey response
+ */
+router.post('/surveys/:id/submit', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { responseData, latitude, longitude, isDraft } = req.body;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid survey ID',
+      } as ApiResponse);
+    }
+
+    if (!responseData) {
+      return res.status(400).json({
+        success: false,
+        message: 'Response data is required',
+      } as ApiResponse);
+    }
+
+    const submission = await surveyService.submitSurveyResponse(
+      Number(id),
+      responseData,
+      {
+        latitude,
+        longitude,
+        enumeratorEmail: req.user?.email,
+        enumeratorName: (req.user as any)?.name,
+        isDraft,
+      }
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Survey submitted successfully',
+      data: submission,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error submitting survey:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to submit survey',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/surveys/:id/submissions
+ * Get survey submissions
+ */
+router.get('/surveys/:id/submissions', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, enumeratorEmail } = req.query;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid survey ID',
+      } as ApiResponse);
+    }
+
+    const submissions = await surveyService.getSurveySubmissions(Number(id), {
+      status: status as string | undefined,
+      enumeratorEmail: enumeratorEmail as string | undefined,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Submissions retrieved successfully',
+      data: submissions,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error fetching submissions:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch submissions',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/survey-templates
+ * Get available survey templates
+ */
+router.get('/survey-templates', async (req: Request, res: Response) => {
+  try {
+    const templates = await surveyService.getSurveyTemplates();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Templates retrieved successfully',
+      data: templates,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error fetching templates:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch templates',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/surveys/import
+ * Import survey from JSON
+ */
+router.post('/surveys/import', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.email) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      } as ApiResponse);
+    }
+
+    const { jsonData } = req.body;
+
+    if (!jsonData) {
+      return res.status(400).json({
+        success: false,
+        message: 'jsonData is required',
+      } as ApiResponse);
+    }
+
+    const survey = await surveyService.importSurveyFromJSON(jsonData, req.user.email);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Survey imported successfully',
+      data: survey,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error importing survey:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to import survey',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/surveys/:id/export
+ * Export survey as JSON
+ */
+router.get('/surveys/:id/export', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid survey ID',
+      } as ApiResponse);
+    }
+
+    const survey = await surveyService.getSurveyById(Number(id));
+
+    if (!survey) {
+      return res.status(404).json({
+        success: false,
+        message: 'Survey not found',
+      } as ApiResponse);
+    }
+
+    const jsonData = surveyService.exportSurveyToJSON(survey);
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="survey_${survey.id}_${Date.now()}.json"`
+    );
+    res.send(jsonData);
+  } catch (error: any) {
+    console.error('Error exporting survey:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to export survey',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * ACCOUNT MANAGEMENT ENDPOINTS
+ */
+
+/**
+ * DELETE /api/account/delete
+ * Permanently delete user account (DANGEROUS - requires authentication)
+ */
+router.delete('/account/delete', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.email) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      } as ApiResponse);
+    }
+
+    const { confirmPassword } = req.body;
+
+    // Require password confirmation for security
+    if (!confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password confirmation is required to delete account',
+      } as ApiResponse);
+    }
+
+    // Verify password
+    try {
+      await AuthService.authenticateEnumerator(req.user.email, confirmPassword);
+    } catch {
+      return res.status(401).json({
+        success: false,
+        message: 'Incorrect password',
+      } as ApiResponse);
+    }
+
+    // Get user info before deletion for notification
+    const user = await AuthService.getEnumeratorByEmail(req.user.email);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      } as ApiResponse);
+    }
+
+    // Send deletion confirmation notification BEFORE deleting
+    try {
+      await notificationService.sendDeletionNotification(
+        req.user.email,
+        user.name
+      );
+    } catch (notificationError: any) {
+      console.error('Error sending deletion notification:', notificationError.message);
+      // Continue with deletion even if notification fails
+    }
+
+    // Delete account (this cascades to all related data)
+    const deleted = await AuthService.deleteEnumeratorByEmail(req.user.email);
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      } as ApiResponse);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Account deleted permanently. A confirmation email has been sent.',
+      data: { email: req.user.email, deletedAt: new Date().toISOString() },
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error deleting account:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to delete account',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * NOTIFICATION ENDPOINTS
+ */
+
+/**
+ * GET /api/notifications
+ * Get all notifications for authenticated user
+ */
+router.get('/notifications', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.email) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      } as ApiResponse);
+    }
+
+    const limit = parseInt(req.query.limit as string) || 20;
+    const notifications = await notificationService.getUserNotifications(req.user.email, limit);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Notifications retrieved successfully',
+      data: notifications,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error retrieving notifications:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to retrieve notifications',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * PUT /api/notifications/:id/read
+ * Mark notification as read
+ */
+router.put('/notifications/:id/read', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid notification ID',
+      } as ApiResponse);
+    }
+
+    const marked = await notificationService.markNotificationAsRead(Number(id));
+
+    if (!marked) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found',
+      } as ApiResponse);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Notification marked as read',
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error marking notification as read:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to mark notification as read',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * DELETE /api/notifications
+ * Clear all notifications for authenticated user
+ */
+router.delete('/notifications', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.email) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      } as ApiResponse);
+    }
+
+    const cleared = await notificationService.clearUserNotifications(req.user.email);
+
+    return res.status(200).json({
+      success: true,
+      message: `${cleared} notifications cleared`,
+      data: { cleared },
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error clearing notifications:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to clear notifications',
       error: error.message,
     } as ApiResponse);
   }
