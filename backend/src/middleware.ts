@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import * as Express from 'express';
 import { pool } from './db';
 import { ApiResponse } from './types';
 
