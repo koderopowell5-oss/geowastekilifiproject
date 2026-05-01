@@ -16,8 +16,7 @@
     "declarationMap": false,
     "sourceMap": false,
     "moduleResolution": "node",
-    "types": ["node"],
-    "ignoreDeprecations": "6.0"
+    "types": ["node"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

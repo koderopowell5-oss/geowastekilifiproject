@@ -6,7 +6,7 @@ import { cloudinaryUploadService } from './cloudinaryService';
 import { emailService } from './emailService';
 import { otpService } from './otpService';
 import { notificationService } from './notificationService';
-import { surveyService, SurveyFormConfig } from './surveyService';
+import { SurveyService, SurveyFormConfig } from './surveyService';
 import { ApiResponse, WasteSiteRecord, RecordComment, EnumeratorAssignment } from './types';
 import { authMiddleware, requireAdmin, requireSupervisor, AuthRequest } from './middleware';
 import { pool } from './db';
@@ -1209,7 +1209,7 @@ router.get('/surveys', authMiddleware, async (req: AuthRequest, res: Response) =
       } as ApiResponse);
     }
 
-    const surveys = await surveyService.getAvailableSurveys(req.user.email);
+    const surveys = await SurveyService.getAvailableSurveys(req.user.email);
 
     return res.status(200).json({
       success: true,
@@ -1232,7 +1232,7 @@ router.get('/surveys', authMiddleware, async (req: AuthRequest, res: Response) =
  */
 router.get('/surveys/default', async (req: Request, res: Response) => {
   try {
-    const survey = await surveyService.getDefaultSurvey();
+    const survey = await SurveyService.getDefaultSurvey();
 
     return res.status(200).json({
       success: true,
@@ -1264,7 +1264,7 @@ router.get('/surveys/:id', async (req: Request, res: Response) => {
       } as ApiResponse);
     }
 
-    const survey = await surveyService.getSurveyById(Number(id));
+    const survey = await SurveyService.getSurveyById(Number(id));
 
     if (!survey) {
       return res.status(404).json({
@@ -1310,7 +1310,7 @@ router.post('/surveys', authMiddleware, async (req: AuthRequest, res: Response) 
       } as ApiResponse);
     }
 
-    const survey = await surveyService.createSurvey(
+    const survey = await SurveyService.createSurvey(
       title,
       formConfig as SurveyFormConfig,
       req.user.email,
@@ -1348,7 +1348,7 @@ router.put('/surveys/:id', authMiddleware, async (req: AuthRequest, res: Respons
       } as ApiResponse);
     }
 
-    const survey = await surveyService.updateSurvey(Number(id), updates);
+    const survey = await SurveyService.updateSurvey(Number(id), updates);
 
     return res.status(200).json({
       success: true,
@@ -1380,7 +1380,7 @@ router.delete('/surveys/:id', authMiddleware, requireAdmin, async (req: Request,
       } as ApiResponse);
     }
 
-    const deleted = await surveyService.deleteSurvey(Number(id));
+    const deleted = await SurveyService.deleteSurvey(Number(id));
 
     if (!deleted) {
       return res.status(404).json({
@@ -1426,7 +1426,7 @@ router.post('/surveys/:id/submit', authMiddleware, async (req: AuthRequest, res:
       } as ApiResponse);
     }
 
-    const submission = await surveyService.submitSurveyResponse(
+    const submission = await SurveyService.submitSurveyResponse(
       Number(id),
       responseData,
       {
@@ -1469,7 +1469,7 @@ router.get('/surveys/:id/submissions', authMiddleware, requireAdmin, async (req:
       } as ApiResponse);
     }
 
-    const submissions = await surveyService.getSurveySubmissions(Number(id), {
+    const submissions = await SurveyService.getSurveySubmissions(Number(id), {
       status: status as string | undefined,
       enumeratorEmail: enumeratorEmail as string | undefined,
     });
@@ -1495,7 +1495,7 @@ router.get('/surveys/:id/submissions', authMiddleware, requireAdmin, async (req:
  */
 router.get('/survey-templates', async (req: Request, res: Response) => {
   try {
-    const templates = await surveyService.getSurveyTemplates();
+    const templates = await SurveyService.getSurveyTemplates();
 
     return res.status(200).json({
       success: true,
@@ -1534,7 +1534,7 @@ router.post('/surveys/import', authMiddleware, async (req: AuthRequest, res: Res
       } as ApiResponse);
     }
 
-    const survey = await surveyService.importSurveyFromJSON(jsonData, req.user.email);
+    const survey = await SurveyService.importSurveyFromJSON(jsonData, req.user.email);
 
     return res.status(201).json({
       success: true,
@@ -1566,7 +1566,7 @@ router.get('/surveys/:id/export', async (req: Request, res: Response) => {
       } as ApiResponse);
     }
 
-    const survey = await surveyService.getSurveyById(Number(id));
+    const survey = await SurveyService.getSurveyById(Number(id));
 
     if (!survey) {
       return res.status(404).json({
@@ -1575,7 +1575,7 @@ router.get('/surveys/:id/export', async (req: Request, res: Response) => {
       } as ApiResponse);
     }
 
-    const jsonData = surveyService.exportSurveyToJSON(survey);
+    const jsonData = SurveyService.exportSurveyToJSON(survey);
 
     res.setHeader('Content-Type', 'application/json');
     res.setHeader(

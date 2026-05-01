@@ -6,6 +6,8 @@ export interface AuthRequest extends Request {
   params: any;
   body: any;
   headers: any;
+  file?: Express.Multer.File;
+  query: Record<string, string | string[] | undefined>;
   user?: {
     id: number;
     email: string;
