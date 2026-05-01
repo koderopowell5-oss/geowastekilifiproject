@@ -18,6 +18,7 @@ export interface Enumerator {
   role: string;
   status: string;
   profile_picture_url?: string;
+  primary_project_id?: string;
   created_at: string;
   updated_at: string;
 }

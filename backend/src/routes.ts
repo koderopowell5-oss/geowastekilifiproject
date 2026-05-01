@@ -8,6 +8,7 @@ import { emailService } from './emailService';
 import { otpService } from './otpService';
 import { notificationService } from './notificationService';
 import { SurveyService, SurveyFormConfig } from './surveyService';
+import { ProjectService } from './projectService';
 import { ApiResponse, WasteSiteRecord, RecordComment, EnumeratorAssignment } from './types';
 import { authMiddleware, requireAdmin, requireSupervisor, AuthRequest } from './middleware';
 import { pool } from './db';
@@ -64,10 +65,17 @@ router.post('/auth/login', async (req: Request, res: Response) => {
 
     const enumerator = await AuthService.authenticateEnumerator(email, password);
 
+    // Get user's projects (multi-tenancy support)
+    const projects = await ProjectService.getEnumeratorProjects(enumerator.id);
+
     return res.status(200).json({
       success: true,
       message: 'Login successful',
-      data: enumerator,
+      data: {
+        user: enumerator,
+        projects,
+        current_project_id: enumerator.primary_project_id || (projects.length > 0 ? projects[0].project.id : null),
+      },
     } as ApiResponse);
   } catch (error: any) {
     console.error('Error authenticating enumerator:', error);
@@ -210,7 +218,7 @@ router.post('/auth/otp/request', async (req: Request, res: Response) => {
  */
 router.post('/auth/otp/verify', async (req: Request, res: Response) => {
   try {
-    const { email, otp } = req.body;
+    const { email, otp, project_id, role_id } = req.body;
 
     // Validate required fields
     if (!email || !otp) {
@@ -243,6 +251,34 @@ router.post('/auth/otp/verify', async (req: Request, res: Response) => {
       [email]
     );
 
+    // Handle project association (multi-tenancy)
+    let assignedProjectId = null;
+    if (project_id) {
+      try {
+        // If project_id provided, assign user to existing project
+        const roleId = role_id || 3; // Default to data_collector role
+        await ProjectService.grantProjectAccess(enumerator.id, project_id, roleId);
+        assignedProjectId = project_id;
+      } catch (projectError: any) {
+        console.warn('Could not assign to project:', projectError.message);
+        // Don't fail signup if project assignment fails
+      }
+    } else {
+      // Create default project for new user
+      try {
+        const defaultProject = await ProjectService.createProject(
+          `${signupData.name}'s Project`,
+          'Default project for new user',
+          enumerator.id
+        );
+        await ProjectService.setDefaultProject(enumerator.id, defaultProject.id);
+        assignedProjectId = defaultProject.id;
+      } catch (projectError: any) {
+        console.warn('Could not create default project:', projectError.message);
+        // Don't fail signup if default project creation fails
+      }
+    }
+
     // Send verification confirmation notification
     try {
       await notificationService.sendVerificationNotification(
@@ -259,10 +295,17 @@ router.post('/auth/otp/verify', async (req: Request, res: Response) => {
     await pool.query('DELETE FROM otp_verifications WHERE email = $1', [email]);
     await pool.query('DELETE FROM pending_signups WHERE email = $1', [email]);
 
+    // Get projects for response
+    const projects = await ProjectService.getEnumeratorProjects(enumerator.id);
+
     return res.status(201).json({
       success: true,
       message: 'Email verified and account created successfully',
-      data: enumerator,
+      data: {
+        user: enumerator,
+        projects,
+        current_project_id: assignedProjectId || (projects.length > 0 ? projects[0].project.id : null),
+      },
     } as ApiResponse);
   } catch (error: any) {
     console.error('Error verifying OTP:', error);
@@ -1891,6 +1934,389 @@ router.delete('/notifications', authMiddleware, async (req: AuthRequest, res: Re
     return res.status(500).json({
       success: false,
       message: error.message || 'Failed to clear notifications',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+// ============================================================================
+// PROJECT MANAGEMENT ROUTES (Multi-Tenancy)
+// ============================================================================
+
+/**
+ * POST /api/projects
+ * Create a new project (admin only)
+ */
+router.post('/projects', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { name, description } = req.body;
+    const authReq = req as AuthRequest;
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Project name is required',
+      } as ApiResponse);
+    }
+
+    const project = await ProjectService.createProject(
+      name,
+      description || '',
+      authReq.user.id
+    );
+
+    // Grant creator admin access
+    const adminRole = 1; // admin role ID
+    await ProjectService.grantProjectAccess(authReq.user.id, project.id, adminRole);
+
+    // Set as default project
+    await ProjectService.setDefaultProject(authReq.user.id, project.id);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Project created successfully',
+      data: project,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error creating project:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create project',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/projects
+ * Get all projects for the logged-in user
+ */
+router.get('/projects', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthRequest;
+    const projects = await ProjectService.getEnumeratorProjects(authReq.user.id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Projects retrieved successfully',
+      data: projects,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error fetching projects:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch projects',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/projects/:id
+ * Get a specific project
+ */
+router.get('/projects/:id', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const authReq = req as AuthRequest;
+
+    // Check if user has access to this project
+    const hasAccess = await ProjectService.hasProjectAccess(authReq.user.id, id);
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied to this project',
+      } as ApiResponse);
+    }
+
+    const project = await ProjectService.getProject(id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Project retrieved successfully',
+      data: project,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error fetching project:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch project',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/projects/:id/enumerators
+ * Get all enumerators in a project (supervisor+ only)
+ */
+router.get('/projects/:id/enumerators', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const authReq = req as AuthRequest;
+
+    // Check permission
+    const hasPermission = await ProjectService.hasPermission(
+      authReq.user.id,
+      id,
+      'manage_team'
+    );
+    if (!hasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: 'Permission denied. You need manage_team permission.',
+      } as ApiResponse);
+    }
+
+    const enumerators = await ProjectService.getProjectEnumerators(id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Enumerators retrieved successfully',
+      data: enumerators,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error fetching enumerators:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch enumerators',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/projects/:id/invite
+ * Invite an enumerator to a project
+ */
+router.post('/projects/:id/invite', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { email, role_id } = req.body;
+    const authReq = req as AuthRequest;
+
+    if (!email || !role_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and role_id are required',
+      } as ApiResponse);
+    }
+
+    // Check permission
+    const hasPermission = await ProjectService.hasPermission(
+      authReq.user.id,
+      id,
+      'manage_team'
+    );
+    if (!hasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: 'Permission denied. You need manage_team permission.',
+      } as ApiResponse);
+    }
+
+    const invite = await ProjectService.createProjectInvite(id, email, role_id);
+
+    // TODO: Send email with invite link
+    // const inviteLink = `${process.env.FRONTEND_URL}/accept-invite/${invite.invite_code}`;
+    // await emailService.sendProjectInviteEmail(email, inviteLink);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Invitation sent successfully',
+      data: invite,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error sending invitation:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to send invitation',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/projects/invite/:code/accept
+ * Accept a project invitation
+ */
+router.post('/projects/invite/:code/accept', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { code } = req.params;
+    const authReq = req as AuthRequest;
+
+    const invite = await ProjectService.acceptProjectInvite(code, authReq.user.id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Invitation accepted successfully',
+      data: invite,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error accepting invitation:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to accept invitation',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/projects/pending-invites
+ * Get pending invitations for the user's email
+ */
+router.get('/projects/pending-invites', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthRequest;
+    const invites = await ProjectService.getPendingInvitations(authReq.user.email);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Pending invitations retrieved successfully',
+      data: invites,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error fetching invitations:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch invitations',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/projects/:id/forms/:formId/share
+ * Share a form with an enumerator
+ */
+router.post('/projects/:id/forms/:formId/share', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id, formId } = req.params;
+    const { enumerator_id } = req.body;
+    const authReq = req as AuthRequest;
+
+    if (!enumerator_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'enumerator_id is required',
+      } as ApiResponse);
+    }
+
+    // Check permission
+    const hasPermission = await ProjectService.hasPermission(
+      authReq.user.id,
+      id,
+      'share_forms'
+    );
+    if (!hasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: 'Permission denied. You need share_forms permission.',
+      } as ApiResponse);
+    }
+
+    const sharing = await ProjectService.shareFormWithEnumerator(
+      formId,
+      enumerator_id,
+      id,
+      authReq.user.id
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Form shared successfully',
+      data: sharing,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error sharing form:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to share form',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * GET /api/projects/:id/shared-forms
+ * Get all forms shared with the user for a project
+ */
+router.get('/projects/:id/shared-forms', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const authReq = req as AuthRequest;
+
+    // Check access
+    const hasAccess = await ProjectService.hasProjectAccess(authReq.user.id, id);
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied to this project',
+      } as ApiResponse);
+    }
+
+    const forms = await ProjectService.getSharedForms(authReq.user.id, id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Shared forms retrieved successfully',
+      data: forms,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error fetching shared forms:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch shared forms',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/auth/switch-project
+ * Switch the active project for the user
+ */
+router.post('/auth/switch-project', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { project_id } = req.body;
+    const authReq = req as AuthRequest;
+
+    if (!project_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'project_id is required',
+      } as ApiResponse);
+    }
+
+    // Check if user has access
+    const hasAccess = await ProjectService.hasProjectAccess(authReq.user.id, project_id);
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied to this project',
+      } as ApiResponse);
+    }
+
+    // Set as default
+    await ProjectService.setDefaultProject(authReq.user.id, project_id);
+
+    // Get user's projects
+    const projects = await ProjectService.getEnumeratorProjects(authReq.user.id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Project switched successfully',
+      data: {
+        current_project_id: project_id,
+        projects,
+      },
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error switching project:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to switch project',
       error: error.message,
     } as ApiResponse);
   }

@@ -173,3 +173,64 @@ export interface LocationData {
   accuracy: number;
   timestamp: number;
 }
+
+// ============================================================================
+// MULTI-TENANCY TYPES
+// ============================================================================
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  admin_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Role {
+  id: number;
+  name: 'admin' | 'supervisor' | 'data_collector';
+  description: string;
+  permissions: string[];
+}
+
+export interface EnumeratorRole {
+  enumerator_id: string;
+  project_id: string;
+  role_id: number;
+  assigned_at: string;
+}
+
+export interface FormSharing {
+  form_id: string;
+  enumerator_id: string;
+  project_id: string;
+  shared_at: string;
+  shared_by_id?: string;
+  permissions: string[];
+}
+
+export interface ProjectInvite {
+  id: string;
+  project_id: string;
+  email: string;
+  role_id: number;
+  status: 'pending' | 'accepted' | 'rejected';
+  invite_code: string;
+  expires_at: string;
+  created_at: string;
+  accepted_at?: string;
+}
+
+export interface EnumeratorProject {
+  project: Project;
+  role: Role;
+  permissions: string[];
+}
+
+export interface LoginResponseWithProjects {
+  user: any;
+  token: string;
+  projects: EnumeratorProject[];
+  current_project_id: string;
+}
