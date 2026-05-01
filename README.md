@@ -1,16 +1,19 @@
 # 🗺️ GeoWaste Kilifi MVP
 
-> A web-based geospatial data collection system for field research and analysis of solid waste disposal suitability in Kilifi Municipality.
+> A comprehensive geospatial data collection system for field research and analysis of solid waste disposal suitability in Kilifi Municipality. Features include web & mobile apps, real-time notifications, OTP authentication, custom surveys, and advanced versioning controls.
 
 ![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
-![Version](https://img.shields.io/badge/Version-1.0.0-blue)
+![Version](https://img.shields.io/badge/Version-1.0.2-blue)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
+![Backend](https://img.shields.io/badge/Backend-1.0.0-green)
+![Frontend](https://img.shields.io/badge/Frontend-1.0.2-green)
 
 ---
 
 ## 📋 Table of Contents
 
 - [Overview](#overview)
+- [System Architecture](#-system-architecture)
 - [📱 Mobile App (NEW!)](#-mobile-app-new)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
@@ -20,6 +23,7 @@
 - [API Documentation](#api-documentation)
 - [Database Schema](#database-schema)
 - [Features](#features)
+- [Release Notes](#-release-notes-v102)
 - [Usage Guide](#usage-guide)
 - [Troubleshooting](#troubleshooting)
 - [Data Export & Analysis](#data-export--analysis)
@@ -97,7 +101,68 @@ Web users can download the Android APK directly from the application:
 
 ---
 
+## 🏗️ System Architecture
+
+### Three-Tier Application Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  PRESENTATION LAYER                     │
+│  React Frontend (Web)  │  Capacitor Mobile (Android)   │
+│  • Responsive UI       │  • Native performance         │
+│  • Real-time updates   │  • Offline-first design       │
+└─────────────┬───────────────────────────────────────────┘
+              │ HTTPS / REST API
+┌─────────────▼───────────────────────────────────────────┐
+│                    API LAYER                             │
+│            Express.js REST Backend (1.0.0)              │
+│  • Authentication & Authorization                        │
+│  • Spatial data operations (PostGIS)                     │
+│  • Real-time notifications                              │
+│  • Version management & auto-updates                     │
+│  • File uploads (Cloudinary integration)                │
+└─────────────┬───────────────────────────────────────────┘
+              │ SQL
+┌─────────────▼───────────────────────────────────────────┐
+│                   DATA LAYER                             │
+│         PostgreSQL 12+ with PostGIS 3.x+                │
+│  • Geospatial indexing (GiST/BRIN)                      │
+│  • Waste collection sites & surveys                     │
+│  • User profiles & authentication                        │
+│  • Notification history & OTP records                   │
+│  • Version control & update logs                        │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Core Services Architecture
+
+| Service | Responsibility | Key Methods |
+|---------|----------------|-------------|
+| **Authentication Service** | User login, registration, role-based access | `loginUser()`, `registerUser()`, `verifyOTP()` |
+| **Waste Survey Service** | CRUD operations on waste collection sites | `createSurvey()`, `updateSurvey()`, `getSurveys()` |
+| **Geolocation Service** | GPS capture, coordinate validation | `captureLocation()`, `validateCoordinates()` |
+| **Notification Service** | Real-time alerts & notifications | `sendNotification()`, `getNotificationHistory()` |
+| **OTP Service** | One-time password generation & validation | `generateOTP()`, `verifyOTP()`, `resendOTP()` |
+| **Survey Service** | Custom survey templates & management | `createSurveyTemplate()`, `updateTemplate()` |
+| **Version Service** | Auto-update detection & management | `checkVersion()`, `getLatestVersion()` |
+| **Email Service** | SMTP email delivery | `sendEmail()`, `sendBulkEmails()` |
+| **Data Quality Service** | Validation & data quality checks | `validateSurveyData()`, `checkDataIntegrity()` |
+| **Cloudinary Service** | Image upload & management | `uploadImage()`, `deleteImage()` |
+
+---
+
 ## Tech Stack
+
+### Frontend (React 18 + TypeScript)
+| Technology | Version | Purpose |
+|---|---|---|
+| React | 18.2.0 | UI components & form handling |
+| TypeScript | 4.9.5+ | Type-safe development |
+| Tailwind CSS | 3.3.0 | Responsive design system |
+| Leaflet.js | 1.9.4+ | Geospatial visualization |
+| Recharts | 3.8.1 | Data visualization & analytics |
+| Capacitor | 8.3.1 | Mobile app framework (Android) |
+| React Scripts | 5.0.1 | Build tooling |
 
 ### Frontend
 | Technology | Version | Purpose |
@@ -132,56 +197,129 @@ Web users can download the Android APK directly from the application:
 ## Project Structure
 
 ```
-GeoWaste Kilifi/
-├── backend/                          # Node.js + Express REST API
-│   └── src/
-│       ├── index.ts                  # App entry point
-│       ├── db.ts                     # DB connection pooling
-│       ├── routes.ts                 # API route definitions
-│       ├── service.ts                # Business logic & spatial ops
-│       ├── types.ts                  # TypeScript interfaces
-│       └── authService.ts            # Authentication logic
+GeoWaste Kilifi/                       # v1.0.2 - System Architecture
+├── backend/                          # Node.js + Express REST API (v1.0.0)
+│   ├── src/
+│   │   ├── index.ts                  # App entry point
+│   │   ├── db.ts                     # DB connection pooling
+│   │   ├── routes.ts                 # API route definitions
+│   │   ├── service.ts                # Business logic & spatial ops
+│   │   ├── types.ts                  # TypeScript interfaces
+│   │   ├── middleware.ts             # Auth & error middleware
+│   │   ├── migrations.ts             # Database migrations
+│   │   ├── authService.ts            # Authentication & authorization
+│   │   ├── notificationService.ts    # Real-time notifications (NEW)
+│   │   ├── otpService.ts             # OTP generation & verification (NEW)
+│   │   ├── surveyService.ts          # Custom survey templates (NEW)
+│   │   ├── versionService.ts         # Version management
+│   │   ├── dataQualityService.ts     # Data validation (NEW)
+│   │   ├── emailService.ts           # SMTP email delivery
+│   │   ├── cloudinaryService.ts      # Image storage & CDN
+│   │   └── versionRoutes.ts          # Version API endpoints
+│   └── package.json
 │
-├── frontend/                         # React TypeScript app
-│   └── src/
-│       ├── components/
-│       │   ├── Dashboard.tsx         # Main dashboard
-│       │   ├── AdminDashboard.tsx    # Admin panel
-│       │   ├── WasteSurveyForm.tsx   # 9-section survey form
-│       │   ├── WasteMap.tsx          # Leaflet map
-│       │   └── ...
-│       ├── context/
-│       │   ├── AuthContext.tsx       # Auth state
-│       │   └── NotificationContext.tsx
-│       ├── pages/
-│       │   ├── LoginPage.tsx
-│       │   ├── AdminLoginPage.tsx
-│       │   └── SignupPage.tsx
-│       └── services/
-│           ├── wasteApi.ts           # API client
-│           ├── geolocation.ts        # GPS service
-│           └── offlineService.ts     # Offline cache
+├── frontend/                         # React TypeScript app (v1.0.2)
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── Dashboard.tsx         # Main dashboard
+│   │   │   ├── AdminDashboard.tsx    # Admin panel
+│   │   │   ├── EnumeratorDashboard.tsx
+│   │   │   ├── WasteSurveyForm.tsx   # 9-section survey form
+│   │   │   ├── DynamicSurveyForm.tsx # Custom survey form (NEW)
+│   │   │   ├── SurveyBuilder.tsx     # Survey template builder (NEW)
+│   │   │   ├── NotificationPanel.tsx # Notifications UI (NEW)
+│   │   │   ├── AccountSettingsPage.tsx # User settings (NEW)
+│   │   │   ├── GeneralSettings.tsx   # General app settings
+│   │   │   ├── ProfileTab.tsx        # User profile
+│   │   │   ├── UpdateModal.tsx       # Version update prompt
+│   │   │   ├── WasteMap.tsx          # Leaflet map
+│   │   │   ├── ErrorBoundary.tsx     # Error handling
+│   │   │   └── ...
+│   │   ├── context/
+│   │   │   ├── AuthContext.tsx       # Auth state
+│   │   │   └── NotificationContext.tsx # Notifications state (NEW)
+│   │   ├── pages/
+│   │   │   ├── LoginPage.tsx
+│   │   │   ├── AdminLoginPage.tsx
+│   │   │   ├── SignupPage.tsx
+│   │   │   ├── OTPSignupPage.tsx     # OTP verification (NEW)
+│   │   │   └── SurveysManagementPage.tsx # Survey mgmt (NEW)
+│   │   ├── hooks/
+│   │   │   ├── useVersionCheck.ts    # Version checking hook
+│   │   │   └── ...
+│   │   ├── services/
+│   │   │   ├── wasteApi.ts           # API client
+│   │   │   ├── geolocation.ts        # GPS service
+│   │   │   ├── offlineService.ts     # Offline cache
+│   │   │   └── updateService.ts      # Update checking
+│   │   ├── utils/                    # Utility functions
+│   │   ├── context/                  # Context providers
+│   │   └── locales/                  # i18n translations
+│   ├── android/                      # Capacitor Android app (NEW)
+│   │   ├── app/
+│   │   ├── build.gradle
+│   │   └── ...
+│   ├── public/
+│   │   ├── index.html
+│   │   ├── assets/                   # Public assets
+│   │   ├── downloads/                # APK downloads
+│   │   └── images/
+│   └── package.json
 │
-├── database/
+├── database/                         # PostgreSQL + PostGIS schemas
 │   ├── schema.sql                    # Full PostGIS schema
-│   ├── schema-no-postgis.sql         # Schema without spatial features
-│   └── *.sql                         # Migrations & setup scripts
+│   ├── schema-no-postgis.sql         # Schema without spatial
+│   ├── migration_001_add_enumerator_email.sql
+│   ├── migration_002_add_image_url.sql
+│   ├── migration_003_add_features.sql
+│   ├── migration_004_fix_geom_and_quality.sql
+│   ├── migration_005_add_profile_picture.sql
+│   ├── migration_006_add_otp_tables.sql (NEW)
+│   ├── migration_007_custom_surveys.sql (NEW)
+│   ├── migration_008_notification_system.sql (NEW)
+│   ├── seed-notifications.sql        # Notification templates (NEW)
+│   ├── seed-survey-templates.sql     # Survey templates (NEW)
+│   ├── add-drafts.sql
+│   ├── fix-geom-column.sql
+│   └── setup-render.sql
+│
+├── scripts/                          # Utility scripts
+│   ├── generate-test-notifications.sh
+│   ├── generate-test-notifications.bat
+│   └── generate-test-notifications.js
 │
 ├── types.ts                          # Shared frontend/backend types
-├── docker-compose.yml
+├── package.json                      # Root package
+├── docker-compose.yml                # Docker orchestration
 │
 ├── Documentation/
-│   ├── QUICKSTART.md
-│   ├── PROJECT-OVERVIEW.md
-│   ├── API-TESTING.md
-│   ├── DEPLOYMENT.md
-│   └── POSTGRES-SETUP.md
+│   ├── README.md (this file)
+│   ├── VERSIONING_GUIDE.md          # Version management (NEW)
+│   ├── VERSION_RELEASE_QUICK_REF.md # Release reference (NEW)
+│   ├── NOTIFICATION_TESTING_GUIDE.md # Notification testing (NEW)
+│   ├── TEST_NOTIFICATIONS_QUICK_START.md # Quick test guide (NEW)
+│   ├── VISUAL_OVERVIEW.md
+│   └── ... (other docs)
 │
-└── Scripts/
-    ├── setup-db.ps1
-    ├── install-postgis.ps1
-    └── fix-permissions.ps1
+└── Config Files
+    ├── .gitignore
+    ├── docker-compose.yml
+    ├── render.yaml
+    └── setup scripts (.ps1, .sh files)
 ```
+
+### Key Files by Feature
+
+| Feature | Backend | Frontend | Database |
+|---------|---------|----------|----------|
+| **Surveys** | service.ts | WasteSurveyForm.tsx | waste_sites table |
+| **Authentication** | authService.ts | AuthContext.tsx | users table |
+| **Notifications** | notificationService.ts | NotificationPanel.tsx | notifications table (NEW) |
+| **OTP** | otpService.ts | OTPSignupPage.tsx | otp_records table (NEW) |
+| **Custom Surveys** | surveyService.ts | SurveyBuilder.tsx | survey_templates table (NEW) |
+| **Versioning** | versionService.ts | UpdateModal.tsx | version_logs table |
+| **Maps** | service.ts (spatial) | WasteMap.tsx | geom columns |
+| **Mobile** | API layer | Capacitor | Same backend |
 
 ---
 
@@ -461,8 +599,19 @@ WHERE geom && ST_MakeEnvelope(-3.3, 39.5, -3.2, 39.7, 4326);
 
 ## Features
 
-### 📋 Survey Form — 9 Sections
+### ✨ Core Features (v1.0.2)
 
+#### 🔐 Enhanced Authentication & Security
+- **OTP Authentication** - One-Time Password verification for account security
+- **Email/Username-based Tokens** - Flexible login options
+- **Profile Pictures** - User account avatars & identification
+- **Account Settings Page** - Comprehensive user profile management
+- **Password Management** - Secure password reset & change functionality
+- **Multi-role Access Control** - Enumerator & Administrator roles with different permissions
+
+#### 📋 Survey Form — 9 Sections + Custom Surveys
+
+**Standard Survey Sections:**
 | Section | Topics |
 |---|---|
 | A | Location & household demographics (auto GPS) |
@@ -475,20 +624,139 @@ WHERE geom && ST_MakeEnvelope(-3.3, 39.5, -3.2, 39.7, 4326);
 | H | Community & policy awareness |
 | I | Open-ended qualitative feedback |
 
-### 🗺️ Map Features
+**NEW: Custom Survey Builder**
+- 🛠️ **Dynamic Survey Templates** - Create custom survey templates without code
+- 📝 **Survey Management Interface** - Full CRUD operations for survey templates
+- 🔄 **Template Reusability** - Save and apply survey templates across projects
+- 📊 **Field Type Support** - Text, numbers, dropdowns, multi-select, date, geolocation
 
+#### 🔔 Real-Time Notifications System (NEW!)
+- **In-app Notifications** - Real-time notification panel in UI
+- **Notification History** - Complete audit trail of all notifications
+- **Notification Preferences** - User-configurable notification settings
+- **Auto-updates Tracking** - Notifications for new app versions
+- **Admin Broadcast** - Admins can send system-wide announcements
+- **Email Notifications** - Integrated email delivery for critical updates
+
+#### 📱 Versioning & Auto-Update System (NEW!)
+- **Automatic Version Detection** - Background check for new app versions
+- **Semantic Versioning** - MAJOR.MINOR.PATCH versioning scheme
+- **In-app Update Prompts** - User-friendly update notifications
+- **Update Modal** - Download and installation guidance
+- **Version History Tracking** - Complete audit of all version releases
+- **Rollback Support** - Ability to revert to previous stable versions
+
+#### 🗺️ Map Features
 - Interactive Leaflet map centred on Kilifi Municipality
 - Marker clustering for dense data areas
 - Click-to-expand site detail panel
 - Multiple basemap options (satellite, terrain)
+- Real-time map updates with latest survey data
 
-### ⚙️ Backend & Database
+#### 📊 Data & Analytics
+- Real-time dashboard with KPI metrics
+- Survey completion statistics
+- Spatial analysis with PostGIS
+- Data quality indicators
+- Waste site suitability rankings
 
+#### ⚙️ Backend & Database
 - Pagination for large datasets
 - PostGIS spatial querying and bounding box filtering
 - Input validation & SQL injection prevention
-- CORS configuration, JWT authentication
+- CORS configuration, JWT authentication with OTP support
 - Connection pooling and optimised indexes
+- Email service integration (SMTP)
+- Image hosting (Cloudinary)
+- Comprehensive error handling & logging
+
+#### 📱 Mobile App (Capacitor Android)
+- Native Android app with React integration
+- Offline-first architecture
+- GPS geolocation with high precision
+- Camera integration for photo capture
+- Local data caching
+- Background sync when connection restored
+
+---
+
+## 📋 Release Notes: v1.0.2
+
+**Released**: May 1, 2026  
+**Status**: Production Ready
+
+### ✨ What's New
+
+#### Major Features Added
+- 🔔 **Real-Time Notification System** - Complete notification infrastructure with in-app panel and history
+- 🔐 **OTP Authentication** - One-Time Password verification for enhanced security
+- 📝 **Custom Survey Builder** - Dynamic survey template creation without code
+- 📊 **Survey Management UI** - Full CRUD operations for custom survey templates
+- 🔄 **Automated Version Management** - Background version checking and update prompts
+- 📱 **Account Settings Page** - Comprehensive user profile management interface
+- 🎨 **Enhanced Authentication** - Email/username-based flexible login system
+
+#### Backend Services (v1.0.0)
+| Service | Status | Description |
+|---------|--------|-------------|
+| `notificationService.ts` | ✅ NEW | Real-time notifications & delivery |
+| `otpService.ts` | ✅ NEW | OTP generation and verification |
+| `surveyService.ts` | ✅ NEW | Custom survey template management |
+| `versionService.ts` | ✅ ENHANCED | Version tracking & update detection |
+| `dataQualityService.ts` | ✅ NEW | Data validation & quality checks |
+
+#### Database Enhancements
+- **5 New Migrations**:
+  - `migration_005_add_profile_picture.sql` - User profile pictures
+  - `migration_006_add_otp_tables.sql` - OTP records storage
+  - `migration_007_custom_surveys.sql` - Survey templates tables
+  - `migration_008_notification_system.sql` - Notification tables
+  - **Seed Scripts**: `seed-notifications.sql`, `seed-survey-templates.sql`
+
+#### Frontend Components (v1.0.2)
+| Component | Type | Status |
+|-----------|------|--------|
+| `NotificationPanel.tsx` | Feature | ✅ NEW |
+| `DynamicSurveyForm.tsx` | Feature | ✅ NEW |
+| `SurveyBuilder.tsx` | Feature | ✅ NEW |
+| `SurveysManagementPage.tsx` | Feature | ✅ NEW |
+| `AccountSettingsPage.tsx` | Feature | ✅ NEW |
+| `OTPSignupPage.tsx` | Feature | ✅ NEW |
+| `UpdateModal.tsx` | Component | ✅ ENHANCED |
+| `ProfileTab.tsx` | Component | ✅ ENHANCED |
+
+#### New Documentation
+- `NOTIFICATION_TESTING_GUIDE.md` - Testing notification system
+- `TEST_NOTIFICATIONS_QUICK_START.md` - Quick reference for testing
+- `VERSIONING_GUIDE.md` - Version management strategy
+- `VERSION_RELEASE_QUICK_REF.md` - Release quick reference
+
+### 🔧 Technical Improvements
+- Enhanced error handling across all services
+- Improved data validation in survey processing
+- Optimized database queries with better indexing
+- Better logging and monitoring for production
+- Complete TypeScript type safety
+
+### 📚 Breaking Changes
+None - v1.0.2 is fully backward compatible with v1.0.0
+
+### 🐛 Bug Fixes
+- Fixed profile picture handling in authentication
+- Improved OTP retry logic and timing
+- Enhanced notification delivery reliability
+
+### 📦 Dependencies Updated
+- Core dependencies remain stable (React 18.2.0, Express 4.x, PostgreSQL 12+)
+- Added notification delivery libraries
+- Enhanced email service capabilities
+
+### 🚀 Migration Path
+Users upgrading from v1.0.0 to v1.0.2:
+1. Automatic database migrations run on startup
+2. New OTP tables created automatically
+3. Survey templates pre-populated from seed script
+4. Existing user data fully preserved
 
 ---
 
@@ -503,12 +771,31 @@ WHERE geom && ST_MakeEnvelope(-3.3, 39.5, -3.2, 39.7, 4326);
 5. Complete all 9 sections (use **Next / Previous** to navigate)
 6. Submit — a confirmation message will appear on success
 
-### Viewing the Map
+### Using Custom Surveys
 
-1. Click **"View Map"** on the dashboard
-2. The map loads with all collected sites as markers
-3. Click a marker to see a popup with site details
-4. Expand the detail panel for the full survey record
+1. Go to **"Surveys Management"** from the admin panel
+2. Click **"Create New Survey Template"**
+3. Use the **Survey Builder** to add custom questions
+4. Configure field types (text, dropdown, date, etc.)
+5. Save the template
+6. Enumerators can now use this template instead of the standard survey
+
+### Managing Notifications
+
+1. Click the **🔔 bell icon** in the navigation bar
+2. View all recent notifications in the panel
+3. Click a notification to view full details
+4. Notifications auto-clear after 7 days or can be manually dismissed
+5. Go to **Account Settings → Notification Preferences** to configure alerts
+
+### Checking for App Updates
+
+1. Go to **Settings** or **Profile → General Settings**
+2. The system automatically checks for new versions daily
+3. When an update is available:
+   - You'll see an **"Update Available"** notification
+   - Click the update prompt or visit Settings to review changes
+   - Download and install the new version
 
 ### Understanding Suitability Weights
 
