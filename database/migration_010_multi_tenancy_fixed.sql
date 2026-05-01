@@ -1,7 +1,6 @@
 -- ============================================================================
--- Migration 010: Multi-Tenancy Implementation (FIXED FOR ACTUAL SCHEMA)
+-- Migration 010: Multi-Tenancy Implementation (FIXED)
 -- Adds project-based isolation with roles and permissions
--- NOTE: This database uses waste_sites, not surveys. Adjusted accordingly.
 -- ============================================================================
 
 -- 1. Create projects table (with integer admin_id to match enumerators)
@@ -47,9 +46,9 @@ CREATE INDEX idx_enumerator_roles_enumerator_id ON enumerator_roles(enumerator_i
 CREATE INDEX idx_enumerator_roles_project_id ON enumerator_roles(project_id);
 CREATE INDEX idx_enumerator_roles_role_id ON enumerator_roles(role_id);
 
--- 4. Create form_sharing table (NOTE: References waste_sites, not surveys)
+-- 4. Create form_sharing table
 CREATE TABLE IF NOT EXISTS form_sharing (
-  form_id INTEGER NOT NULL REFERENCES waste_sites(id) ON DELETE CASCADE,
+  form_id INTEGER NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
   enumerator_id INTEGER NOT NULL REFERENCES enumerators(id) ON DELETE CASCADE,
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   shared_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -83,13 +82,15 @@ CREATE INDEX idx_project_invites_status ON project_invites(status);
 
 -- 6. Add project_id columns to existing tables
 ALTER TABLE enumerators ADD COLUMN IF NOT EXISTS primary_project_id UUID REFERENCES projects(id) ON DELETE SET NULL;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id) ON DELETE CASCADE;
 ALTER TABLE waste_sites ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id) ON DELETE CASCADE;
-ALTER TABLE waste_site_drafts ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id) ON DELETE CASCADE;
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id) ON DELETE CASCADE;
 
 -- Create indexes for project_id columns
 CREATE INDEX IF NOT EXISTS idx_enumerators_primary_project_id ON enumerators(primary_project_id);
+CREATE INDEX IF NOT EXISTS idx_surveys_project_id ON surveys(project_id);
 CREATE INDEX IF NOT EXISTS idx_waste_sites_project_id ON waste_sites(project_id);
-CREATE INDEX IF NOT EXISTS idx_waste_site_drafts_project_id ON waste_site_drafts(project_id);
+CREATE INDEX IF NOT EXISTS idx_submissions_project_id ON submissions(project_id);
 
 -- 7. Helper functions for permissions and project access
 
@@ -106,7 +107,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to share form (waste_site) with enumerator
+-- Function to share form with enumerator
 CREATE OR REPLACE FUNCTION share_form_with_enumerator(
   p_form_id INTEGER,
   p_enumerator_id INTEGER,
@@ -128,6 +129,6 @@ COMMENT ON TABLE enumerator_roles IS 'Junction table mapping enumerators to proj
 COMMENT ON TABLE form_sharing IS 'Form sharing permissions between projects and enumerators';
 COMMENT ON TABLE project_invites IS 'Invitation codes for adding enumerators to projects';
 COMMENT ON COLUMN enumerators.primary_project_id IS 'Default/active project for this enumerator';
-COMMENT ON COLUMN waste_sites.project_id IS 'Project this waste site record belongs to';
-COMMENT ON COLUMN waste_site_drafts.project_id IS 'Project this waste site draft belongs to';
-
+COMMENT ON COLUMN surveys.project_id IS 'Project this survey/form belongs to';
+COMMENT ON COLUMN waste_sites.project_id IS 'Project this waste site belongs to';
+COMMENT ON COLUMN submissions.project_id IS 'Project this submission belongs to';
