@@ -168,6 +168,52 @@ export class EmailService {
       html
     );
   }
+
+  /**
+   * Send password reset email
+   */
+  async sendPasswordResetEmail(
+    enumeratorEmail: string,
+    enumeratorName: string,
+    resetLink: string,
+    expiryMinutes: number
+  ): Promise<boolean> {
+    const html = `
+      <h2>Password Reset Request</h2>
+      <p>Hello ${enumeratorName},</p>
+      <p>We received a request to reset your password. Click the link below to proceed:</p>
+      <p style="margin: 24px 0;">
+        <a href="${resetLink}" style="background-color: #329D9C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+          Reset Password
+        </a>
+      </p>
+      <p><strong>This link will expire in ${expiryMinutes} minutes.</strong></p>
+      <p>If you didn't request a password reset, you can safely ignore this email.</p>
+      <hr>
+      <p style="font-size: 12px; color: #666;">
+        <em>This is an automated message from GeoWaste Kilifi. Please do not reply to this email.</em>
+      </p>
+    `;
+
+    return this.sendNotification(
+      enumeratorEmail,
+      'Password Reset Request - GeoWaste Kilifi',
+      html
+    );
+  }
+
+  /**
+   * Static method for password reset service
+   */
+  static async sendPasswordResetEmail(
+    enumeratorEmail: string,
+    enumeratorName: string,
+    resetLink: string,
+    expiryMinutes: number
+  ): Promise<boolean> {
+    const service = new EmailService();
+    return service.sendPasswordResetEmail(enumeratorEmail, enumeratorName, resetLink, expiryMinutes);
+  }
 }
 
 export const emailService = new EmailService();

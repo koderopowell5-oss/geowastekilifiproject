@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { WasteService } from './service';
 import { AuthService } from './authService';
+import { PasswordResetService } from './passwordResetService';
 import { cloudinaryUploadService } from './cloudinaryService';
 import { emailService } from './emailService';
 import { otpService } from './otpService';
@@ -302,6 +303,123 @@ router.post('/auth/otp/resend', async (req: Request, res: Response) => {
     return res.status(400).json({
       success: false,
       message: error.message || 'Failed to resend OTP',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * Request password reset
+ */
+router.post('/auth/forgot-password', async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    // Validate required fields
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required',
+      } as ApiResponse);
+    }
+
+    // Request password reset
+    const result = await PasswordResetService.requestPasswordReset(email);
+
+    return res.status(200).json({
+      success: result.success,
+      message: result.message,
+      data: { email },
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Password reset request error:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to process password reset request',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/auth/verify-reset-token
+ * Verify password reset token
+ */
+router.post('/auth/verify-reset-token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+
+    // Validate required fields
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reset token is required',
+      } as ApiResponse);
+    }
+
+    // Verify token
+    const verification = await PasswordResetService.verifyResetToken(token);
+
+    return res.status(200).json({
+      success: verification.valid,
+      message: verification.valid ? 'Token is valid' : 'Token is invalid or expired',
+      data: verification.valid ? { email: verification.email } : undefined,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Token verification error:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to verify token',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/auth/reset-password
+ * Reset password with token
+ */
+router.post('/auth/reset-password', async (req: Request, res: Response) => {
+  try {
+    const { token, newPassword, confirmPassword } = req.body;
+
+    // Validate required fields
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token and new password are required',
+      } as ApiResponse);
+    }
+
+    // Validate password match
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match',
+      } as ApiResponse);
+    }
+
+    // Validate password strength
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters',
+      } as ApiResponse);
+    }
+
+    // Reset password
+    const result = await PasswordResetService.resetPassword(token, newPassword);
+
+    return res.status(200).json({
+      success: result.success,
+      message: result.message,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Password reset error:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to reset password',
       error: error.message,
     } as ApiResponse);
   }

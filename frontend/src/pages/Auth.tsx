@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { LogIn, AlertCircle, Loader2, UserPlus, ShieldCheck, Eye, EyeOff, Mail, Lock, User, Phone, MapPin, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { ForgotPasswordPage } from './ForgotPasswordPage';
+import { ResetPasswordPage } from './ResetPasswordPage';
 
 // ─── Shared CSS ───────────────────────────────────────────────────────────────
 
@@ -262,7 +264,7 @@ const FieldRow: React.FC<{
 
 // ─── Main Auth Component ──────────────────────────────────────────────────────
 
-type AuthPage = 'login' | 'signup' | 'admin';
+type AuthPage = 'login' | 'signup' | 'admin' | 'forgot-password' | 'reset-password';
 
 interface AuthProps {
   initialPage?: AuthPage;
@@ -483,6 +485,14 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
             <hr className="auth-divider" />
 
             <div className="auth-actions">
+              <button 
+                className="auth-action-btn" 
+                onClick={() => setCurrentPage('forgot-password')} 
+                disabled={isLoading}
+                style={{ fontSize: '13px' }}
+              >
+                Forgot Password?
+              </button>
               <button className="auth-action-btn" onClick={() => setCurrentPage('signup')} disabled={isLoading}>
                 <UserPlus size={15} /> Create Account
               </button>
@@ -496,6 +506,16 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
         </div>
       </>
     );
+  }
+
+  // ─── Render forgot password page ───
+  if (currentPage === 'forgot-password') {
+    return <ForgotPasswordPage onBack={() => setCurrentPage('login')} />;
+  }
+
+  // ─── Render reset password page ───
+  if (currentPage === 'reset-password') {
+    return <ResetPasswordPage />;
   }
 
   // ─── Render admin login page ───
