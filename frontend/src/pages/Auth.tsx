@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { LogIn, AlertCircle, Loader2, UserPlus, ShieldCheck, Eye, EyeOff, Mail, Lock, User, Phone, MapPin, CheckCircle, ArrowLeft } from 'lucide-react';
+import { LogIn, AlertCircle, Loader2, UserPlus, ShieldCheck, Eye, EyeOff, Mail, Lock, User, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { ForgotPasswordPage } from './ForgotPasswordPage';
 import { ResetPasswordPage } from './ResetPasswordPage';
+import { SignupPage } from './SignupPage';
 
 // ─── Shared CSS ───────────────────────────────────────────────────────────────
 
@@ -271,7 +272,7 @@ interface AuthProps {
 }
 
 export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
-  const { login, signup, adminLogin, isLoading } = useAuth();
+  const { login, adminLogin, isLoading } = useAuth();
   const { showSuccess, showError } = useNotification();
   const [currentPage, setCurrentPage] = useState<AuthPage>(initialPage);
 
@@ -281,27 +282,11 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Signup state
-  const [signupData, setSignupData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    ward: '',
-    phone: '',
-  });
-  const [showSignupPassword, setShowSignupPassword] = useState(false);
-  const [showSignupConfirm, setShowSignupConfirm] = useState(false);
-  const [signupError, setSignupError] = useState<string | null>(null);
-  const [signupSuccess, setSignupSuccess] = useState(false);
-
   // Admin login state
   const [adminUsername, setAdminUsername] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
-
-  const wards = ['Tezo', 'Sokoni', 'Mombasa', 'Kilifi', 'Malindi', 'Lamu', 'Tanariver'];
 
   // ─── Login handlers ───
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -324,43 +309,6 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
   };
 
   // ─── Signup handlers ───
-  const handleSignupChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setSignupData((p) => ({ ...p, [e.target.name]: e.target.value }));
-    setSignupError(null);
-  };
-
-  const validateSignup = (): string | null => {
-    if (!signupData.name.trim()) return 'Full name is required.';
-    if (!signupData.email.trim()) return 'Email address is required.';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupData.email)) return 'Invalid email format.';
-    if (!signupData.ward) return 'Please select an assigned ward.';
-    if (!signupData.phone.trim()) return 'Phone number is required.';
-    if (!/^\+?254[0-9]{9}$/.test(signupData.phone.replace(/\s+/g, ''))) return 'Invalid phone number (e.g. +254712345678).';
-    if (!signupData.password) return 'Password is required.';
-    if (signupData.password.length < 6) return 'Password must be at least 6 characters.';
-    if (signupData.password !== signupData.confirmPassword) return 'Passwords do not match.';
-    return null;
-  };
-
-  const handleSignupSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const err = validateSignup();
-    if (err) {
-      setSignupError(err);
-      showError(err);
-      return;
-    }
-    try {
-      await signup(signupData.name, signupData.email, signupData.password, signupData.ward, signupData.phone);
-      setSignupSuccess(true);
-      showSuccess('Account created successfully! 🎉');
-    } catch (err: any) {
-      const errMsg = err.message || 'Registration failed. Please try again.';
-      setSignupError(errMsg);
-      showError(errMsg, 5000);
-    }
-  };
-
   // ─── Admin login handlers ───
   const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -380,31 +328,6 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
       showError(errMsg, 5000);
     }
   };
-
-  // ─── Signup success screen ───
-  if (currentPage === 'signup' && signupSuccess) {
-    return (
-      <>
-        <style>{authCss}</style>
-        <div className="auth-success">
-          <CheckCircle size={44} className="auth-success-icon" />
-          <h2 className="auth-success-title">Account created</h2>
-          <p className="auth-success-sub">Your enumerator account is ready.<br />Sign in to begin collecting data.</p>
-          <button
-            onClick={() => {
-              setCurrentPage('login');
-              setSignupSuccess(false);
-              setSignupData({ name: '', email: '', password: '', confirmPassword: '', ward: '', phone: '' });
-            }}
-            className="auth-submit"
-            style={{ marginTop: 8, width: 'auto', padding: '10px 28px' }}
-          >
-            <ArrowLeft size={15} /> Back to Sign In
-          </button>
-        </div>
-      </>
-    );
-  }
 
   // ─── Render login page ───
   if (currentPage === 'login') {
@@ -624,175 +547,11 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
   }
 
   // ─── Render signup page ───
-  return (
-    <>
-      <style>{authCss}</style>
-      <div className="auth-root">
-        <header className="auth-header">
-          <div className="auth-header-inner">
-            <button
-              className="auth-back-btn"
-              onClick={() => {
-                setCurrentPage('login');
-                setSignupError(null);
-                setSignupData({ name: '', email: '', password: '', confirmPassword: '', ward: '', phone: '' });
-              }}
-              disabled={isLoading}
-            >
-              <ArrowLeft size={13} /> Back
-            </button>
-            <div>
-              <p className="auth-eyebrow">New enumerator</p>
-              <h1 className="auth-title">Create Account</h1>
-            </div>
-          </div>
-          <div className="auth-progress-rail">
-            <div className="auth-progress-fill" style={{ width: '100%' }} />
-          </div>
-        </header>
+  if (currentPage === 'signup') {
+    return <SignupPage onBackToLogin={() => setCurrentPage('login')} />;
+  }
 
-        <main className="auth-body">
-          <section>
-            <h2 className="auth-section-title">Register</h2>
-            <p className="auth-section-sub">Create your enumerator account to start collecting geospatial waste data</p>
-          </section>
-
-          <hr className="auth-divider" />
-
-          {signupError && <div className="auth-error"><AlertCircle size={14} />{signupError}</div>}
-
-          <form onSubmit={handleSignupSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-            {/* Personal details */}
-            <div>
-              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 0 }}>
-                Personal Details
-              </p>
-              <div className="auth-fields">
-                <FieldRow icon={<User size={14} />} label="Full Name" first>
-                  <input
-                    className="auth-input"
-                    type="text"
-                    name="name"
-                    value={signupData.name}
-                    onChange={handleSignupChange}
-                    disabled={isLoading}
-                    placeholder="John Kamau"
-                  />
-                </FieldRow>
-                <FieldRow icon={<Mail size={14} />} label="Email Address">
-                  <input
-                    className="auth-input"
-                    type="email"
-                    name="email"
-                    value={signupData.email}
-                    onChange={handleSignupChange}
-                    disabled={isLoading}
-                    placeholder="john@geowaste.com"
-                  />
-                </FieldRow>
-                <FieldRow icon={<MapPin size={14} />} label="Assigned Ward">
-                  <select className="auth-select" name="ward" value={signupData.ward} onChange={handleSignupChange} disabled={isLoading}>
-                    <option value="">Select a ward</option>
-                    {wards.map((w) => (
-                      <option key={w} value={w}>
-                        {w}
-                      </option>
-                    ))}
-                  </select>
-                </FieldRow>
-                <FieldRow icon={<Phone size={14} />} label="Phone Number" hint="+254712345678">
-                  <input
-                    className="auth-input"
-                    type="tel"
-                    name="phone"
-                    value={signupData.phone}
-                    onChange={handleSignupChange}
-                    disabled={isLoading}
-                    placeholder="+254712345678"
-                  />
-                </FieldRow>
-              </div>
-            </div>
-
-            {/* Security */}
-            <div>
-              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 0 }}>
-                Security
-              </p>
-              <div className="auth-fields">
-                <FieldRow
-                  icon={<Lock size={14} />}
-                  label="Password"
-                  hint="Minimum 6 characters"
-                  first
-                  trailing={
-                    <button
-                      type="button"
-                      className="auth-toggle-btn"
-                      onClick={() => setShowSignupPassword((p) => !p)}
-                      tabIndex={-1}
-                    >
-                      {showSignupPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  }
-                >
-                  <input
-                    className="auth-input"
-                    type={showSignupPassword ? 'text' : 'password'}
-                    name="password"
-                    value={signupData.password}
-                    onChange={handleSignupChange}
-                    disabled={isLoading}
-                    placeholder="••••••••••••"
-                  />
-                </FieldRow>
-                <FieldRow
-                  icon={<Lock size={14} />}
-                  label="Confirm Password"
-                  trailing={
-                    <button
-                      type="button"
-                      className="auth-toggle-btn"
-                      onClick={() => setShowSignupConfirm((p) => !p)}
-                      tabIndex={-1}
-                    >
-                      {showSignupConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  }
-                >
-                  <input
-                    className="auth-input"
-                    type={showSignupConfirm ? 'text' : 'password'}
-                    name="confirmPassword"
-                    value={signupData.confirmPassword}
-                    onChange={handleSignupChange}
-                    disabled={isLoading}
-                    placeholder="••••••••••••"
-                  />
-                </FieldRow>
-              </div>
-            </div>
-
-            <button type="submit" className="auth-submit" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 size={15} className="spin" />
-                  Creating Account…
-                </>
-              ) : (
-                <>
-                  <CheckCircle size={15} />
-                  Create Account
-                </>
-              )}
-            </button>
-          </form>
-
-          <p className="auth-footer">GeoWaste Kilifi · Enumerator Registration</p>
-        </main>
-      </div>
-    </>
-  );
+  return null;
 };
 
 export default Auth;
