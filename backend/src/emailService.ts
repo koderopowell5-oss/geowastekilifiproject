@@ -9,9 +9,16 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
 
   constructor() {
-    // Google SMTP configuration
+    // Explicit SMTP configuration (preferred over `service: 'gmail'`)
+    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+    const smtpSecure = (process.env.SMTP_SECURE || 'false') === 'true';
+
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure, // true for 465, false for other ports (587 with STARTTLS)
+      requireTLS: true,
       auth: {
         user: process.env.GMAIL_USER || '',
         pass: process.env.GMAIL_APP_PASSWORD || '',
@@ -23,6 +30,13 @@ export class EmailService {
       connectionTimeout: parseInt(process.env.EMAIL_CONNECTION_TIMEOUT_MS || '20000', 10),
       greetingTimeout: parseInt(process.env.EMAIL_GREETING_TIMEOUT_MS || '20000', 10),
       socketTimeout: parseInt(process.env.EMAIL_SOCKET_TIMEOUT_MS || '20000', 10),
+    });
+
+    // Verify transporter at startup and log connectivity — helps detect blocked egress
+    this.transporter.verify().then(() => {
+      console.log('[EMAIL] SMTP transporter verified and ready');
+    }).catch((err: any) => {
+      console.warn('[EMAIL] SMTP transporter verification failed:', err && err.message ? err.message : err);
     });
 
     if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {

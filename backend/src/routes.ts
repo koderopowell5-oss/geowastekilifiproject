@@ -255,8 +255,16 @@ router.post('/auth/register', async (req: Request, res: Response) => {
       .then(() => {
         console.log(`[REGISTRATION] Background - Email sent to ${email}`);
       })
-      .catch((emailError: any) => {
-        console.warn(`[REGISTRATION] Background - Could not send email to ${email}:`, emailError.message);
+      .catch(async (emailError: any) => {
+        console.warn(`[REGISTRATION] Background - Could not send email to ${email}:`, emailError && emailError.message ? emailError.message : emailError);
+        try {
+          // Cleanup pending signup and OTP to avoid leaving credentials for failed sends
+          await pool.query('DELETE FROM otp_verifications WHERE email = $1', [email]);
+          await pool.query('DELETE FROM pending_signups WHERE email = $1', [email]);
+          console.log(`[REGISTRATION] Background - Cleared pending signup and OTP for ${email} due to email send failure`);
+        } catch (cleanupErr: any) {
+          console.error(`[REGISTRATION] Background - Failed to cleanup pending data for ${email}:`, cleanupErr && cleanupErr.message ? cleanupErr.message : cleanupErr);
+        }
       });
 
     console.log(`[REGISTRATION] ✓ RESPONSE sent for ${email} (Total: ${Date.now() - startTime}ms) - PENDING VERIFICATION`);
