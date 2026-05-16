@@ -66,6 +66,9 @@ router.post('/auth/login', async (req: Request, res: Response) => {
 
     const enumerator = await AuthService.authenticateEnumerator(email, password);
 
+    // Generate token: email:timestamp format
+    const token = `${email}:${Date.now()}`;
+
     // Get user's projects (multi-tenancy support)
     const projects = await ProjectService.getEnumeratorProjects(enumerator.id);
 
@@ -73,6 +76,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
       success: true,
       message: 'Login successful',
       data: {
+        token,
         user: enumerator,
         projects,
         current_project_id: enumerator.primary_project_id || (projects.length > 0 ? projects[0].project.id : null),
@@ -157,14 +161,14 @@ router.delete('/auth/enumerators/:id', authMiddleware, requireAdmin, async (req:
  */
 router.post('/auth/register', async (req: Request, res: Response) => {
   try {
-    const { email, password, name, ward, phone } = req.body;
+    const { email, password, name, ward, phone, projectName } = req.body;
 
     // Validate required fields
-    if (!email || !password || !name || !ward || !phone) {
+    if (!email || !password || !name || !ward || !phone || !projectName) {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields',
-        error: 'email, password, name, ward, and phone are required',
+        error: 'email, password, name, ward, phone, and projectName are required',
       } as ApiResponse);
     }
 
@@ -193,7 +197,7 @@ router.post('/auth/register', async (req: Request, res: Response) => {
       } as ApiResponse);
     }
 
-    // Create admin account directly (no OTP)
+    // Create admin account directly
     const admin = await AuthService.createAdminAccount({
       email,
       password,
@@ -203,18 +207,53 @@ router.post('/auth/register', async (req: Request, res: Response) => {
       account_type: 'admin'
     });
 
-    // Create default project for admin
+    // Generate 6-digit verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    // Store verification code
+    await pool.query(
+      'UPDATE enumerators SET email_verification_code = $1, email_verification_code_expires_at = $2, verification_method = $3 WHERE id = $4',
+      [verificationCode, expiresAt, 'email', admin.id]
+    );
+
+    // Send verification email
     try {
-      const defaultProject = await ProjectService.createProject(
-        `${name}'s Workspace`,
-        `Default workspace for ${name}`,
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #329D9C;">Welcome to GeoWaste Admin Portal</h2>
+          <p>Hi ${name},</p>
+          <p>Your admin account has been created successfully. To complete your registration, please verify your email address using the code below:</p>
+          <div style="background: #f0f0f0; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
+            <p style="font-size: 32px; font-weight: bold; color: #329D9C; letter-spacing: 2px; margin: 0;">${verificationCode}</p>
+            <p style="color: #999; margin: 10px 0 0 0;">This code expires in 15 minutes</p>
+          </div>
+          <p>Project: <strong>${projectName}</strong></p>
+          <p style="color: #666; font-size: 12px;">If you didn't create this account, please ignore this email.</p>
+        </div>
+      `;
+
+      await emailService.sendNotification(email, 'GeoWaste Admin - Email Verification Code', emailHtml);
+    } catch (emailError: any) {
+      console.warn('Could not send verification email:', emailError.message);
+      // Don't fail registration if email fails
+    }
+
+    // Create project with admin-provided name
+    try {
+      const project = await ProjectService.createProject(
+        projectName.trim(),
+        `${projectName} - Created on ${new Date().toLocaleDateString()}`,
         admin.id
       );
-      await ProjectService.setDefaultProject(admin.id, defaultProject.id);
+      await ProjectService.setDefaultProject(admin.id, project.id);
     } catch (projectError: any) {
-      console.warn('Could not create default project:', projectError.message);
+      console.warn('Could not create project:', projectError.message);
       // Don't fail registration if project creation fails
     }
+
+    // Generate token: email:timestamp format
+    const token = `${email}:${Date.now()}`;
 
     // Get projects for response
     const projects = await ProjectService.getEnumeratorProjects(admin.id);
@@ -223,6 +262,7 @@ router.post('/auth/register', async (req: Request, res: Response) => {
       success: true,
       message: 'Admin account created successfully',
       data: {
+        token,
         user: admin,
         projects,
         current_project_id: admin.primary_project_id || (projects.length > 0 ? projects[0].project.id : null),
@@ -233,6 +273,107 @@ router.post('/auth/register', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: error.message || 'Failed to register admin',
+      error: error.message,
+    } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/auth/verify-email
+ * Verify email with code sent during admin registration
+ */
+router.post('/auth/verify-email', async (req: Request, res: Response) => {
+  try {
+    const { email, verificationCode } = req.body;
+
+    if (!email || !verificationCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields',
+        error: 'email and verificationCode are required',
+      } as ApiResponse);
+    }
+
+    // Find admin by email
+    const result = await pool.query(
+      'SELECT id, email_verification_code, email_verification_code_expires_at, verification_attempts FROM enumerators WHERE email = $1 AND account_type = $2',
+      [email, 'admin']
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin account not found',
+      } as ApiResponse);
+    }
+
+    const admin = result.rows[0];
+
+    // Check verification attempts
+    if (admin.verification_attempts >= 3) {
+      return res.status(429).json({
+        success: false,
+        message: 'Too many verification attempts. Please try again later.',
+      } as ApiResponse);
+    }
+
+    // Check if code is expired
+    if (!admin.email_verification_code_expires_at || new Date() > new Date(admin.email_verification_code_expires_at)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Verification code has expired',
+      } as ApiResponse);
+    }
+
+    // Check if code matches
+    if (admin.email_verification_code !== verificationCode.trim()) {
+      // Increment failed attempts
+      await pool.query(
+        'UPDATE enumerators SET verification_attempts = verification_attempts + 1 WHERE email = $1',
+        [email]
+      );
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid verification code',
+      } as ApiResponse);
+    }
+
+    // Mark email as verified
+    const updateResult = await pool.query(
+      'UPDATE enumerators SET email_verified = true, email_verification_code = NULL, email_verification_code_expires_at = NULL, verification_attempts = 0, verified_at = NOW() WHERE email = $1 RETURNING id, email, name, ward, phone, account_type, role, status',
+      [email]
+    );
+
+    if (updateResult.rows.length === 0) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to verify email',
+      } as ApiResponse);
+    }
+
+    const verifiedAdmin = updateResult.rows[0];
+
+    // Generate token
+    const token = `${email}:${Date.now()}`;
+
+    // Get projects
+    const projects = await ProjectService.getEnumeratorProjects(verifiedAdmin.id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email verified successfully',
+      data: {
+        token,
+        user: verifiedAdmin,
+        projects,
+        current_project_id: verifiedAdmin.primary_project_id || (projects.length > 0 ? projects[0].project.id : null),
+      },
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error verifying email:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to verify email',
       error: error.message,
     } as ApiResponse);
   }

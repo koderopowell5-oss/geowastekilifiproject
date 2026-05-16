@@ -15,6 +15,10 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [step, setStep] = useState<'registration' | 'verification'>('registration');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [registrationEmail, setRegistrationEmail] = useState('');
+  const [verificationError, setVerificationError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -23,6 +27,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
     confirmPassword: '',
     ward: '',
     phone: '',
+    projectName: '',
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +39,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
   };
 
   const validateForm = (): string | null => {
+    if (!formData.projectName.trim()) return 'Project name is required';
     if (!formData.name.trim()) return 'Name is required';
     if (!formData.email.trim()) return 'Email is required';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) return 'Invalid email format';
@@ -70,17 +76,56 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
         throw new Error(result.message || 'Registration failed');
       }
 
-      showSuccess('Admin account created successfully! Redirecting to dashboard...');
-      // Store the token and redirect
-      const token = result.data?.token;
-      if (token) {
-        localStorage.setItem('authToken', token);
-      }
-      // Wait a moment then reload to let AuthContext handle redirect
-      setTimeout(() => window.location.href = '/', 1500);
+      // Move to verification step
+      setRegistrationEmail(formData.email);
+      setStep('verification');
+      setError(null);
+      showSuccess('Verification code sent to your email');
     } catch (err: any) {
       const errMsg = err.message || 'Failed to create admin account';
       setError(errMsg);
+      showError(errMsg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerificationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!verificationCode.trim() || verificationCode.length !== 6) {
+      setVerificationError('Verification code must be 6 digits');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(buildApiUrl('/auth/verify-email'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: registrationEmail,
+          verificationCode: verificationCode.trim(),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Verification failed');
+      }
+
+      showSuccess('Email verified! Logging in...');
+      // Store token and redirect
+      const token = result.data?.token;
+      if (token) {
+        localStorage.setItem('token', token);
+      }
+      // Reload to let AuthContext handle redirect
+      setTimeout(() => window.location.href = '/', 1500);
+    } catch (err: any) {
+      const errMsg = err.message || 'Verification failed';
+      setVerificationError(errMsg);
       showError(errMsg);
     } finally {
       setIsLoading(false);
@@ -395,38 +440,68 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
           <div className="admin-setup-header-inner">
             <button
               className="admin-setup-back-btn"
-              onClick={onBackToLogin}
+              onClick={() => {
+                if (step === 'verification') {
+                  setStep('registration');
+                  setVerificationCode('');
+                  setVerificationError(null);
+                } else {
+                  onBackToLogin();
+                }
+              }}
               disabled={isLoading}
             >
               <ArrowLeft size={13} /> Back
             </button>
             <div>
               <p className="admin-setup-eyebrow">Welcome</p>
-              <h1 className="admin-setup-title">Admin Registration</h1>
+              <h1 className="admin-setup-title">
+                {step === 'registration' ? 'Admin Registration' : 'Verify Email'}
+              </h1>
             </div>
           </div>
           <div className="admin-setup-progress-rail">
-            <div className="admin-setup-progress-fill" />
+            <div className="admin-setup-progress-fill" style={{ width: step === 'verification' ? '100%' : '50%' }} />
           </div>
         </header>
 
         <main className="admin-setup-body">
-          <section className="admin-setup-section">
-            <h2 className="admin-setup-section-title">Create Your Admin Account</h2>
-            <p className="admin-setup-section-sub">
-              Register to access the admin dashboard where you can create enumerator accounts and manage projects.
-            </p>
-          </section>
+          {step === 'registration' ? (
+            <>
+              <section className="admin-setup-section">
+                <h2 className="admin-setup-section-title">Create Your Admin Account</h2>
+                <p className="admin-setup-section-sub">
+                  Register to access the admin dashboard where you can create enumerator accounts and manage projects.
+                </p>
+              </section>
 
-          {error && (
-            <div className="admin-setup-error">
-              <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
-              <span>{error}</span>
-            </div>
-          )}
+              {error && (
+                <div className="admin-setup-error">
+                  <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <span>{error}</span>
+                </div>
+              )}
 
-          <form onSubmit={handleSubmit} className="admin-setup-form">
-            <div className="admin-setup-fields">
+              <form onSubmit={handleSubmit} className="admin-setup-form">
+                <div className="admin-setup-fields">
+              <div className="admin-setup-field">
+                <div className="admin-setup-field-icon">
+                  <MapPin size={14} />
+                </div>
+                <div className="admin-setup-field-inner">
+                  <label className="admin-setup-field-label">Project Name</label>
+                  <input
+                    className="admin-setup-input"
+                    type="text"
+                    name="projectName"
+                    value={formData.projectName}
+                    onChange={handleChange}
+                    disabled={isLoading}
+                    placeholder="GeoWaste Kilifi"
+                  />
+                </div>
+              </div>
+
               <div className="admin-setup-field">
                 <div className="admin-setup-field-icon">
                   <User size={14} />
@@ -570,7 +645,65 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
                 </>
               )}
             </button>
-          </form>
+              </form>
+            </>
+          ) : (
+            <>
+              <section className="admin-setup-section">
+                <h2 className="admin-setup-section-title">Verify Your Email</h2>
+                <p className="admin-setup-section-sub">
+                  We've sent a 6-digit verification code to {registrationEmail}. Enter it below to complete registration.
+                </p>
+              </section>
+
+              {verificationError && (
+                <div className="admin-setup-error">
+                  <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <span>{verificationError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleVerificationSubmit} className="admin-setup-form">
+                <div className="admin-setup-fields">
+                  <div className="admin-setup-field">
+                    <div className="admin-setup-field-icon">
+                      <Lock size={14} />
+                    </div>
+                    <div className="admin-setup-field-inner">
+                      <label className="admin-setup-field-label">Verification Code</label>
+                      <input
+                        className="admin-setup-input"
+                        type="text"
+                        value={verificationCode}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          setVerificationCode(val);
+                          setVerificationError(null);
+                        }}
+                        disabled={isLoading}
+                        placeholder="000000"
+                        maxLength={6}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <button type="submit" className="admin-setup-submit" disabled={isLoading || verificationCode.length !== 6}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 size={15} className="spin" />
+                      Verifying…
+                    </>
+                  ) : (
+                    <>
+                      <Mail size={15} />
+                      Verify & Continue
+                    </>
+                  )}
+                </button>
+              </form>
+            </>
+          )}
 
           <p className="admin-setup-footer">
             GeoWaste Kilifi · Administrators

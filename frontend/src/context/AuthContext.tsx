@@ -31,6 +31,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const SESSION_STORAGE_KEY = 'auth_user';
 const SESSION_TIMESTAMP_KEY = 'auth_session_timestamp';
+const TOKEN_STORAGE_KEY = 'token';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -70,6 +71,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Call backend API for login
       const response = await wasteApiService.loginEnumerator(email, password);
       
+      // Enumerator login should reject admin accounts
+      if (response.user.account_type === 'admin') {
+        throw new Error('Admin accounts must use admin login. Please use the admin portal.');
+      }
+      
       const enumerator: Enumerator = {
         id: response.user.id,
         name: response.user.name,
@@ -84,6 +90,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(enumerator);
       localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(enumerator));
       localStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString());
+      
+      // Store auth token for API requests
+      if (response.token) {
+        localStorage.setItem(TOKEN_STORAGE_KEY, response.token);
+      }
     } catch (error: any) {
       throw new Error(error.message || 'Login failed');
     } finally {
@@ -104,6 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: enumerator.email,
         ward: enumerator.ward,
         phone: enumerator.phone,
+        account_type: enumerator.account_type || 'enumerator',
       };
       
       setUser(user);
@@ -141,6 +153,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(admin);
       localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(admin));
       localStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString());
+      
+      // Store auth token for API requests
+      if (response.token) {
+        localStorage.setItem(TOKEN_STORAGE_KEY, response.token);
+      }
     } catch (error: any) {
       throw new Error(error.message || 'Admin login failed');
     } finally {
@@ -152,6 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     localStorage.removeItem(SESSION_STORAGE_KEY);
     localStorage.removeItem(SESSION_TIMESTAMP_KEY);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
   };
 
   const isAdmin = user ? user.account_type === 'admin' : false;

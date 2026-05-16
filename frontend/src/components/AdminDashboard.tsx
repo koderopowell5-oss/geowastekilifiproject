@@ -11,7 +11,6 @@ import { wasteApiService } from '../services/wasteApi';
 import { WasteSiteRecord } from '../../../types';
 import { FloatingTabBar } from './FloatingTabBar';
 import { ProfileTab } from './ProfileTab';
-import { EnumeratorsPage } from './EnumeratorsPage';
 import { EnumeratorManagement } from './EnumeratorManagementPanel';
 import { RecordsPage } from './RecordsPage';
 import { SurveysManagementPage } from './SurveysManagementPage';
