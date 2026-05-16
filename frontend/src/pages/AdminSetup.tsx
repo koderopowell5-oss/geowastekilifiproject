@@ -80,7 +80,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
       setRegistrationEmail(formData.email);
       setStep('verification');
       setError(null);
-      showSuccess('Verification code sent to your email');
+      showSuccess('✓ Account created! Verification code sent to your email');
     } catch (err: any) {
       const errMsg = err.message || 'Failed to create admin account';
       setError(errMsg);
@@ -116,13 +116,34 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
       }
 
       showSuccess('Email verified! Logging in...');
-      // Store token and redirect
+      
+      // Store token
       const token = result.data?.token;
       if (token) {
         localStorage.setItem('token', token);
       }
-      // Reload to let AuthContext handle redirect
-      setTimeout(() => window.location.href = '/', 1500);
+
+      // Store admin user data in localStorage with same structure as adminLogin
+      const adminData = result.data?.user;
+      if (adminData) {
+        const user = {
+          id: adminData.id,
+          name: adminData.name,
+          email: adminData.email,
+          ward: adminData.ward,
+          phone: adminData.phone,
+          account_type: 'admin',
+          role: adminData.role || 'admin',
+          status: adminData.status || 'active',
+        };
+        localStorage.setItem('auth_user', JSON.stringify(user));
+        localStorage.setItem('auth_session_timestamp', Date.now().toString());
+      }
+
+      // Reload to let AuthContext detect logged-in user and show admin dashboard
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1500);
     } catch (err: any) {
       const errMsg = err.message || 'Verification failed';
       setVerificationError(errMsg);

@@ -160,6 +160,7 @@ router.delete('/auth/enumerators/:id', authMiddleware, requireAdmin, async (req:
  * KoBo Collect model: Admins self-register, then create enumerators
  */
 router.post('/auth/register', async (req: Request, res: Response) => {
+  const startTime = Date.now();
   try {
     const { email, password, name, ward, phone, projectName } = req.body;
 
@@ -206,6 +207,7 @@ router.post('/auth/register', async (req: Request, res: Response) => {
       phone,
       account_type: 'admin'
     });
+    console.log(`[REGISTRATION] Step 1 - Admin account created (${Date.now() - startTime}ms)`);
 
     // Generate 6-digit verification code
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -216,56 +218,56 @@ router.post('/auth/register', async (req: Request, res: Response) => {
       'UPDATE enumerators SET email_verification_code = $1, email_verification_code_expires_at = $2, verification_method = $3 WHERE id = $4',
       [verificationCode, expiresAt, 'email', admin.id]
     );
+    console.log(`[REGISTRATION] Step 2 - Verification code stored (${Date.now() - startTime}ms)`);
 
-    // Send verification email
-    try {
-      const emailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #329D9C;">Welcome to GeoWaste Admin Portal</h2>
-          <p>Hi ${name},</p>
-          <p>Your admin account has been created successfully. To complete your registration, please verify your email address using the code below:</p>
-          <div style="background: #f0f0f0; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
-            <p style="font-size: 32px; font-weight: bold; color: #329D9C; letter-spacing: 2px; margin: 0;">${verificationCode}</p>
-            <p style="color: #999; margin: 10px 0 0 0;">This code expires in 15 minutes</p>
-          </div>
-          <p>Project: <strong>${projectName}</strong></p>
-          <p style="color: #666; font-size: 12px;">If you didn't create this account, please ignore this email.</p>
+    // Send verification email ASYNCHRONOUSLY (don't block registration)
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #329D9C;">Welcome to GeoWaste Admin Portal</h2>
+        <p>Hi ${name},</p>
+        <p>Your admin account has been created successfully. To complete your registration, please verify your email address using the code below:</p>
+        <div style="background: #f0f0f0; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
+          <p style="font-size: 32px; font-weight: bold; color: #329D9C; letter-spacing: 2px; margin: 0;">${verificationCode}</p>
+          <p style="color: #999; margin: 10px 0 0 0;">This code expires in 15 minutes</p>
         </div>
-      `;
+        <p>Project: <strong>${projectName}</strong></p>
+        <p style="color: #666; font-size: 12px;">If you didn't create this account, please ignore this email.</p>
+      </div>
+    `;
 
-      await emailService.sendNotification(email, 'GeoWaste Admin - Email Verification Code', emailHtml);
-    } catch (emailError: any) {
-      console.warn('Could not send verification email:', emailError.message);
-      // Don't fail registration if email fails
-    }
+    // Fire email in background - don't wait for it
+    emailService.sendNotification(email, 'GeoWaste Admin - Email Verification Code', emailHtml)
+      .then(() => {
+        console.log(`[REGISTRATION] Background - Email sent to ${email}`);
+      })
+      .catch((emailError: any) => {
+        console.warn(`[REGISTRATION] Background - Could not send email to ${email}:`, emailError.message);
+      });
 
-    // Create project with admin-provided name
-    try {
-      const project = await ProjectService.createProject(
-        projectName.trim(),
-        `${projectName} - Created on ${new Date().toLocaleDateString()}`,
-        admin.id
-      );
-      await ProjectService.setDefaultProject(admin.id, project.id);
-    } catch (projectError: any) {
-      console.warn('Could not create project:', projectError.message);
-      // Don't fail registration if project creation fails
-    }
+    // Create project ASYNCHRONOUSLY (don't block registration)
+    ProjectService.createProject(
+      projectName.trim(),
+      `${projectName} - Created on ${new Date().toLocaleDateString()}`,
+      admin.id
+    )
+      .then((project) => {
+        console.log(`[REGISTRATION] Background - Project created for ${email}`);
+        return ProjectService.setDefaultProject(admin.id, project.id);
+      })
+      .catch((projectError: any) => {
+        console.warn(`[REGISTRATION] Background - Could not create project for ${email}:`, projectError.message);
+      });
 
-    // Generate token: email:timestamp format
-    const token = `${email}:${Date.now()}`;
+    console.log(`[REGISTRATION] ✓ RESPONSE sent for ${email} (Total: ${Date.now() - startTime}ms)`);
 
-    // Get projects for response
-    const projects = await ProjectService.getEnumeratorProjects(admin.id);
-
+    // Return response immediately - don't wait for email or project creation
     return res.status(201).json({
       success: true,
-      message: 'Admin account created successfully',
+      message: 'Admin account created. Please check your email to verify your account.',
       data: {
-        token,
-        user: admin,
-        projects,
-        current_project_id: admin.primary_project_id || (projects.length > 0 ? projects[0].project.id : null),
+        email: admin.email,
+        name: admin.name,
+        requiresVerification: true,
       },
     } as ApiResponse);
   } catch (error: any) {

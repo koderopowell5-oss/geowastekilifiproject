@@ -30,7 +30,10 @@ export class EmailService {
    * Send notification email to enumerator
    */
   async sendNotification(to: string, subject: string, html: string): Promise<boolean> {
+    const emailStart = Date.now();
     try {
+      console.log(`[EMAIL] Sending to ${to}: "${subject}"`);
+      
       const info = await this.transporter.sendMail({
         from: process.env.GMAIL_USER || 'noreply@geowaste.com',
         to,
@@ -38,10 +41,16 @@ export class EmailService {
         html,
       });
 
-      console.log(`Email sent to ${to}: ${info.messageId}`);
+      const duration = Date.now() - emailStart;
+      console.log(`[EMAIL] ✓ Sent to ${to} (${duration}ms) | MessageID: ${info.messageId}`);
       return true;
     } catch (error: any) {
-      console.error(`Failed to send email to ${to}:`, error.message);
+      const duration = Date.now() - emailStart;
+      console.error(`[EMAIL] ✗ FAILED to send to ${to} (${duration}ms):`, {
+        code: error.code,
+        message: error.message,
+        command: error.command,
+      });
       return false;
     }
   }

@@ -27,6 +27,8 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedEnumerator, setSelectedEnumerator] = useState<Enumerator | null>(null);
   const [showResetForm, setShowResetForm] = useState(false);
+  const [showCredentials, setShowCredentials] = useState(false);
+  const [generatedCredentials, setGeneratedCredentials] = useState<{ email: string; password: string } | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -44,7 +46,7 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
   const fetchEnumerators = async () => {
     try {
       setIsLoading(true);
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('token');
       const response = await fetch(buildApiUrl('/admin/enumerators'), {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -81,7 +83,7 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
 
     try {
       setIsCreating(true);
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('token');
       const response = await fetch(buildApiUrl('/admin/enumerators'), {
         method: 'POST',
         headers: {
@@ -94,6 +96,17 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
       if (!response.ok) {
         const result = await response.json();
         throw new Error(result.message || 'Failed to create enumerator');
+      }
+
+      const result = await response.json();
+      
+      // Display generated credentials for admin to share
+      if (result.data?.credentials) {
+        setGeneratedCredentials({
+          email: result.data.credentials.email,
+          password: result.data.credentials.password,
+        });
+        setShowCredentials(true);
       }
 
       showSuccess(`Enumerator ${formData.name} created successfully`);
@@ -120,7 +133,7 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
 
     try {
       setIsCreating(true);
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('token');
       const response = await fetch(
         buildApiUrl(`/admin/enumerators/${selectedEnumerator.id}/reset-password`),
         {
@@ -156,7 +169,7 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
 
     try {
       setIsCreating(true);
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('token');
       const response = await fetch(buildApiUrl(`/admin/enumerators/${enumerator.id}`), {
         method: 'DELETE',
         headers: {
@@ -321,6 +334,108 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
     .enum-form-btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+    }
+
+    .enum-credentials-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .enum-credentials-content {
+      background: white;
+      border-radius: var(--r);
+      padding: 24px;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .enum-credentials-content h4 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--teal-d);
+    }
+
+    .enum-credentials-note {
+      margin: 0;
+      padding: 12px;
+      background: #fff9e6;
+      border-left: 3px solid #ffb800;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #664d00;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .enum-credentials-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .enum-credentials-field label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+    }
+
+    .enum-credentials-value {
+      display: flex;
+      gap: 8px;
+    }
+
+    .enum-credentials-input {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+      background: #f9f9f9;
+      cursor: text;
+      user-select: all;
+    }
+
+    .enum-credentials-copy {
+      padding: 8px 12px;
+      border: 1px solid var(--teal);
+      background: var(--teal);
+      color: white;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .enum-credentials-copy:hover {
+      background: var(--teal-d);
+      border-color: var(--teal-d);
+    }
+
+    .enum-credentials-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 8px;
     }
 
     .enum-list {
@@ -599,6 +714,75 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
               </button>
             </div>
           </form>
+        )}
+
+        {showCredentials && generatedCredentials && (
+          <div className="enum-credentials-modal">
+            <div className="enum-credentials-content">
+              <h4>Enumerator Credentials Generated</h4>
+              <p className="enum-credentials-note">
+                <AlertCircle size={14} />
+                Share these credentials securely with the enumerator. They will need them to log in.
+              </p>
+              
+              <div className="enum-credentials-field">
+                <label>Email</label>
+                <div className="enum-credentials-value">
+                  <input 
+                    type="text" 
+                    value={generatedCredentials.email} 
+                    readOnly 
+                    className="enum-credentials-input"
+                  />
+                  <button
+                    type="button"
+                    className="enum-credentials-copy"
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedCredentials.email);
+                      showSuccess('Email copied to clipboard');
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+
+              <div className="enum-credentials-field">
+                <label>Password</label>
+                <div className="enum-credentials-value">
+                  <input 
+                    type="text" 
+                    value={generatedCredentials.password} 
+                    readOnly 
+                    className="enum-credentials-input"
+                  />
+                  <button
+                    type="button"
+                    className="enum-credentials-copy"
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedCredentials.password);
+                      showSuccess('Password copied to clipboard');
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+
+              <div className="enum-credentials-actions">
+                <button
+                  type="button"
+                  className="enum-form-btn enum-form-btn--primary"
+                  onClick={() => {
+                    setShowCredentials(false);
+                    setGeneratedCredentials(null);
+                  }}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="enum-list">
