@@ -19,6 +19,10 @@ export class EmailService {
       tls: {
         rejectUnauthorized: false,
       },
+      // Prevent long hanging sends by setting sensible timeouts
+      connectionTimeout: parseInt(process.env.EMAIL_CONNECTION_TIMEOUT_MS || '20000', 10),
+      greetingTimeout: parseInt(process.env.EMAIL_GREETING_TIMEOUT_MS || '20000', 10),
+      socketTimeout: parseInt(process.env.EMAIL_SOCKET_TIMEOUT_MS || '20000', 10),
     });
 
     if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
@@ -33,7 +37,7 @@ export class EmailService {
     const emailStart = Date.now();
     try {
       console.log(`[EMAIL] Sending to ${to}: "${subject}"`);
-      
+
       const info = await this.transporter.sendMail({
         from: process.env.GMAIL_USER || 'noreply@geowaste.com',
         to,
@@ -47,11 +51,12 @@ export class EmailService {
     } catch (error: any) {
       const duration = Date.now() - emailStart;
       console.error(`[EMAIL] ✗ FAILED to send to ${to} (${duration}ms):`, {
-        code: error.code,
-        message: error.message,
-        command: error.command,
+        code: error?.code,
+        message: error?.message,
+        command: error?.command,
       });
-      return false;
+      // Throw the error so callers can handle it (especially background callers)
+      throw error;
     }
   }
 
