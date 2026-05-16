@@ -156,8 +156,8 @@ router.delete('/auth/enumerators/:id', authMiddleware, requireAdmin, async (req:
 
 /**
  * POST /api/auth/register
- * Admin-only registration (creates admin account)
- * KoBo Collect model: Admins self-register, then create enumerators
+ * Admin-only registration (creates PENDING admin account - NOT in DB yet)
+ * Account is only created after email verification
  */
 router.post('/auth/register', async (req: Request, res: Response) => {
   const startTime = Date.now();
@@ -189,7 +189,7 @@ router.post('/auth/register', async (req: Request, res: Response) => {
       } as ApiResponse);
     }
 
-    // Check if email already exists
+    // Check if email already exists (either as verified account or pending signup)
     const existingUser = await AuthService.getEnumeratorByEmail(email);
     if (existingUser) {
       return res.status(400).json({
@@ -198,34 +198,49 @@ router.post('/auth/register', async (req: Request, res: Response) => {
       } as ApiResponse);
     }
 
-    // Create admin account directly
-    const admin = await AuthService.createAdminAccount({
-      email,
-      password,
-      name,
-      ward,
-      phone,
-      account_type: 'admin'
-    });
-    console.log(`[REGISTRATION] Step 1 - Admin account created (${Date.now() - startTime}ms)`);
+    // Check if pending signup already exists
+    const pendingResult = await pool.query(
+      'SELECT id FROM pending_signups WHERE email = $1',
+      [email]
+    );
+    if (pendingResult.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'This email is already waiting for verification. Please check your email for the verification code.',
+      } as ApiResponse);
+    }
+
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Store PENDING signup data (DO NOT create account yet)
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    await pool.query(
+      `INSERT INTO pending_signups (email, password, name, ward, phone, project_name, account_type, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [email, hashedPassword, name, ward, phone, projectName.trim(), 'admin', expiresAt]
+    );
+    console.log(`[REGISTRATION] Step 1 - Pending signup stored (${Date.now() - startTime}ms)`);
 
     // Generate 6-digit verification code
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    const codeExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-    // Store verification code
+    // Store OTP
     await pool.query(
-      'UPDATE enumerators SET email_verification_code = $1, email_verification_code_expires_at = $2, verification_method = $3 WHERE id = $4',
-      [verificationCode, expiresAt, 'email', admin.id]
+      `INSERT INTO otp_verifications (email, otp_code, expires_at) 
+       VALUES ($1, $2, $3)
+       ON CONFLICT (email) DO UPDATE SET otp_code = $2, expires_at = $3, attempts = 0`,
+      [email, verificationCode, codeExpiresAt]
     );
-    console.log(`[REGISTRATION] Step 2 - Verification code stored (${Date.now() - startTime}ms)`);
+    console.log(`[REGISTRATION] Step 2 - OTP stored (${Date.now() - startTime}ms)`);
 
     // Send verification email ASYNCHRONOUSLY (don't block registration)
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #329D9C;">Welcome to GeoWaste Admin Portal</h2>
         <p>Hi ${name},</p>
-        <p>Your admin account has been created successfully. To complete your registration, please verify your email address using the code below:</p>
+        <p>You've started the admin registration process. To complete your registration and create your account, please verify your email address using the code below:</p>
         <div style="background: #f0f0f0; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
           <p style="font-size: 32px; font-weight: bold; color: #329D9C; letter-spacing: 2px; margin: 0;">${verificationCode}</p>
           <p style="color: #999; margin: 10px 0 0 0;">This code expires in 15 minutes</p>
@@ -244,30 +259,17 @@ router.post('/auth/register', async (req: Request, res: Response) => {
         console.warn(`[REGISTRATION] Background - Could not send email to ${email}:`, emailError.message);
       });
 
-    // Create project ASYNCHRONOUSLY (don't block registration)
-    ProjectService.createProject(
-      projectName.trim(),
-      `${projectName} - Created on ${new Date().toLocaleDateString()}`,
-      admin.id
-    )
-      .then((project) => {
-        console.log(`[REGISTRATION] Background - Project created for ${email}`);
-        return ProjectService.setDefaultProject(admin.id, project.id);
-      })
-      .catch((projectError: any) => {
-        console.warn(`[REGISTRATION] Background - Could not create project for ${email}:`, projectError.message);
-      });
+    console.log(`[REGISTRATION] ✓ RESPONSE sent for ${email} (Total: ${Date.now() - startTime}ms) - PENDING VERIFICATION`);
 
-    console.log(`[REGISTRATION] ✓ RESPONSE sent for ${email} (Total: ${Date.now() - startTime}ms)`);
-
-    // Return response immediately - don't wait for email or project creation
+    // Return response immediately - account NOT created yet
     return res.status(201).json({
       success: true,
-      message: 'Admin account created. Please check your email to verify your account.',
+      message: 'Registration started. Please check your email to verify your account.',
       data: {
-        email: admin.email,
-        name: admin.name,
+        email,
+        name,
         requiresVerification: true,
+        expiresIn: '15 minutes',
       },
     } as ApiResponse);
   } catch (error: any) {
@@ -282,9 +284,10 @@ router.post('/auth/register', async (req: Request, res: Response) => {
 
 /**
  * POST /api/auth/verify-email
- * Verify email with code sent during admin registration
+ * Verify OTP and CREATE admin account (account only created after verification)
  */
 router.post('/auth/verify-email', async (req: Request, res: Response) => {
+  const startTime = Date.now();
   try {
     const { email, verificationCode } = req.body;
 
@@ -296,42 +299,44 @@ router.post('/auth/verify-email', async (req: Request, res: Response) => {
       } as ApiResponse);
     }
 
-    // Find admin by email
-    const result = await pool.query(
-      'SELECT id, email_verification_code, email_verification_code_expires_at, verification_attempts FROM enumerators WHERE email = $1 AND account_type = $2',
-      [email, 'admin']
+    console.log(`[VERIFY] Starting verification for ${email}`);
+
+    // Get OTP verification record
+    const otpResult = await pool.query(
+      'SELECT id, otp_code, expires_at, attempts FROM otp_verifications WHERE email = $1',
+      [email]
     );
 
-    if (result.rows.length === 0) {
+    if (otpResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'Admin account not found',
+        message: 'Verification code not found. Please register again.',
       } as ApiResponse);
     }
 
-    const admin = result.rows[0];
+    const otp = otpResult.rows[0];
 
-    // Check verification attempts
-    if (admin.verification_attempts >= 3) {
+    // Check attempt limit
+    if (otp.attempts >= 3) {
       return res.status(429).json({
         success: false,
-        message: 'Too many verification attempts. Please try again later.',
+        message: 'Too many failed attempts. Please register again.',
       } as ApiResponse);
     }
 
     // Check if code is expired
-    if (!admin.email_verification_code_expires_at || new Date() > new Date(admin.email_verification_code_expires_at)) {
+    if (new Date() > new Date(otp.expires_at)) {
       return res.status(400).json({
         success: false,
-        message: 'Verification code has expired',
+        message: 'Verification code has expired. Please register again.',
       } as ApiResponse);
     }
 
     // Check if code matches
-    if (admin.email_verification_code !== verificationCode.trim()) {
+    if (otp.otp_code !== verificationCode.trim()) {
       // Increment failed attempts
       await pool.query(
-        'UPDATE enumerators SET verification_attempts = verification_attempts + 1 WHERE email = $1',
+        'UPDATE otp_verifications SET attempts = attempts + 1 WHERE email = $1',
         [email]
       );
       return res.status(400).json({
@@ -340,35 +345,83 @@ router.post('/auth/verify-email', async (req: Request, res: Response) => {
       } as ApiResponse);
     }
 
-    // Mark email as verified
-    const updateResult = await pool.query(
-      'UPDATE enumerators SET email_verified = true, email_verification_code = NULL, email_verification_code_expires_at = NULL, verification_attempts = 0, verified_at = NOW() WHERE email = $1 RETURNING id, email, name, ward, phone, account_type, role, status',
+    console.log(`[VERIFY] Step 1 - OTP verified for ${email} (${Date.now() - startTime}ms)`);
+
+    // Get pending signup data
+    const pendingResult = await pool.query(
+      'SELECT email, password, name, ward, phone, project_name FROM pending_signups WHERE email = $1',
       [email]
     );
 
-    if (updateResult.rows.length === 0) {
-      return res.status(500).json({
+    if (pendingResult.rows.length === 0) {
+      return res.status(400).json({
         success: false,
-        message: 'Failed to verify email',
+        message: 'Registration data not found. Please register again.',
       } as ApiResponse);
     }
 
-    const verifiedAdmin = updateResult.rows[0];
+    const pendingSignup = pendingResult.rows[0];
+
+    // NOW create the actual admin account in enumerators table
+    const adminResult = await pool.query(
+      `INSERT INTO enumerators (email, password, name, ward, phone, role, status, account_type, email_verified, verified_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+       RETURNING id, email, name, ward, phone, role, status, account_type, created_at`,
+      [email, pendingSignup.password, pendingSignup.name, pendingSignup.ward, pendingSignup.phone, 'admin', 'active', 'admin', true]
+    );
+
+    if (adminResult.rows.length === 0) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to create admin account',
+      } as ApiResponse);
+    }
+
+    const admin = adminResult.rows[0];
+    console.log(`[VERIFY] Step 2 - Admin account created in DB for ${email} (${Date.now() - startTime}ms)`);
+
+    // Create project ASYNCHRONOUSLY after account is created
+    ProjectService.createProject(
+      pendingSignup.project_name,
+      `${pendingSignup.project_name} - Created on ${new Date().toLocaleDateString()}`,
+      admin.id
+    )
+      .then((project) => {
+        console.log(`[VERIFY] Background - Project created for ${email}`);
+        return ProjectService.setDefaultProject(admin.id, project.id);
+      })
+      .catch((projectError: any) => {
+        console.warn(`[VERIFY] Background - Could not create project for ${email}:`, projectError.message);
+      });
+
+    // Clean up temporary tables ASYNCHRONOUSLY
+    Promise.all([
+      pool.query('DELETE FROM otp_verifications WHERE email = $1', [email]),
+      pool.query('DELETE FROM pending_signups WHERE email = $1', [email]),
+    ])
+      .then(() => {
+        console.log(`[VERIFY] Background - Cleanup completed for ${email}`);
+      })
+      .catch((cleanupError: any) => {
+        console.warn(`[VERIFY] Background - Cleanup failed for ${email}:`, cleanupError.message);
+      });
 
     // Generate token
     const token = `${email}:${Date.now()}`;
 
-    // Get projects
-    const projects = await ProjectService.getEnumeratorProjects(verifiedAdmin.id);
+    // Get projects (should include the newly created one)
+    const projects = await ProjectService.getEnumeratorProjects(admin.id);
+
+    console.log(`[VERIFY] ✓ RESPONSE sent for ${email} (Total: ${Date.now() - startTime}ms) - ACCOUNT CREATED & VERIFIED`);
 
     return res.status(200).json({
       success: true,
-      message: 'Email verified successfully',
+      message: 'Email verified successfully. Admin account created.',
       data: {
         token,
-        user: verifiedAdmin,
+        user: admin,
         projects,
-        current_project_id: verifiedAdmin.primary_project_id || (projects.length > 0 ? projects[0].project.id : null),
+        current_project_id: admin.primary_project_id || (projects.length > 0 ? projects[0].project.id : null),
       },
     } as ApiResponse);
   } catch (error: any) {
