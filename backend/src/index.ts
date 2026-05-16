@@ -97,8 +97,8 @@ app.listen(PORT, async () => {
     await initializeDatabase();
     console.log('\nDatabase initialized and ready\n');
 
-    // Run migrations
-    await runMigrations();
+    // Skip migrations - already applied via psql
+    // await runMigrations();
   } catch (err: any) {
     console.error('\nDatabase connection failed:', err.message);
     console.error('The server is running but database operations will fail.');

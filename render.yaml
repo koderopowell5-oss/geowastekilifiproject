@@ -12,18 +12,24 @@ services:
       - key: PORT
         value: 5000
       - key: DB_HOST
-        value: dpg-d78fh09r0fns738k6m40-a.frankfurt-postgres.render.com
+        value: dpg-d84b2mp9rddc739h5bb0-a.singapore-postgres.render.com
       - key: DB_PORT
         value: 5432
       - key: DB_NAME
-        value: geowaste_kilifi
+        value: geowaste_kilifi_lw2l
       - key: DB_USER
         value: geowaste
       - key: DB_PASSWORD
         sync: false
       - key: CORS_ORIGIN
-        value: "*"
+        value: https://geowastekilifi.rashoti.com
       - key: API_BASE_URL
-        value: https://geowaste-api.onrender.com
+        value: https://geowastekilifiproject.onrender.com/api
+      - key: CLOUDINARY_URL
+        value: cloudinary://545377594119464:OcTpRfTy2gvugzdLvRnECKt-1m4@dgjmvuhma
+      - key: GMAIL_USER
+        value: koderocollins5@gmail.com
+      - key: GMAIL_APP_PASSWORD
+        value: vqeg sgld orlv nvdr
       - key: API_VERSION
         value: v1
