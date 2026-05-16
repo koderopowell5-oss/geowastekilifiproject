@@ -11,25 +11,30 @@ services:
         value: production
       - key: PORT
         value: 5000
+      # Database configuration - set these in Render dashboard
       - key: DB_HOST
-        value: dpg-d84b2mp9rddc739h5bb0-a.singapore-postgres.render.com
+        sync: false
       - key: DB_PORT
         value: 5432
       - key: DB_NAME
-        value: geowaste_kilifi_lw2l
+        sync: false
       - key: DB_USER
-        value: geowaste
+        sync: false
       - key: DB_PASSWORD
         sync: false
+      # Frontend URL
       - key: CORS_ORIGIN
         value: https://geowastekilifi.rashoti.com
+      # API configuration
       - key: API_BASE_URL
         value: https://geowastekilifiproject.onrender.com/api
-      - key: CLOUDINARY_URL
-        value: cloudinary://545377594119464:OcTpRfTy2gvugzdLvRnECKt-1m4@dgjmvuhma
-      - key: GMAIL_USER
-        value: koderocollins5@gmail.com
-      - key: GMAIL_APP_PASSWORD
-        value: vqeg sgld orlv nvdr
       - key: API_VERSION
         value: v1
+      # Cloudinary - set in Render dashboard
+      - key: CLOUDINARY_URL
+        sync: false
+      # Email service - set in Render dashboard
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
