@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertCircle, Loader2, ArrowLeft, Eye, EyeOff, Mail, Lock, User, Phone, MapPin } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
@@ -19,6 +19,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
   const [verificationCode, setVerificationCode] = useState('');
   const [registrationEmail, setRegistrationEmail] = useState('');
   const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [otpResendCountdown, setOtpResendCountdown] = useState(0);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -146,6 +147,41 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
       }, 1500);
     } catch (err: any) {
       const errMsg = err.message || 'Verification failed';
+      setVerificationError(errMsg);
+      showError(errMsg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle OTP resend countdown
+  useEffect(() => {
+    if (otpResendCountdown > 0) {
+      const timer = setTimeout(() => setOtpResendCountdown(otpResendCountdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [otpResendCountdown]);
+
+  const handleResendOTP = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(buildApiUrl('/auth/otp/resend'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: registrationEmail }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to resend OTP');
+      }
+
+      showSuccess('OTP resent to your email');
+      setOtpResendCountdown(60);
+      setVerificationError(null);
+    } catch (err: any) {
+      const errMsg = err.message || 'Failed to resend OTP';
       setVerificationError(errMsg);
       showError(errMsg);
     } finally {
@@ -723,6 +759,21 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
                   )}
                 </button>
               </form>
+                {/* Resend OTP */}
+                <div style={{ textAlign: 'center', marginTop: 18, paddingTop: 18, borderTop: '1px solid rgba(194, 244, 210, 0.6)' }}>
+                  {otpResendCountdown > 0 ? (
+                    <p className="text-[12px] text-gray-400">Resend OTP in {otpResendCountdown}s</p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResendOTP}
+                      disabled={isLoading}
+                      className="text-[12px] font-semibold text-[#329D9C] hover:text-[#205072] transition-all duration-200 disabled:opacity-50"
+                    >
+                      Didn't receive the code? Resend OTP
+                    </button>
+                  )}
+                </div>
             </>
           )}
 

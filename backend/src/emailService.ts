@@ -35,29 +35,68 @@ export class EmailService {
    */
   async sendNotification(to: string, subject: string, html: string): Promise<boolean> {
     const emailStart = Date.now();
-    try {
-      console.log(`[EMAIL] Sending to ${to}: "${subject}"`);
 
-      const info = await this.transporter.sendMail({
-        from: process.env.GMAIL_USER || 'noreply@geowaste.com',
-        to,
-        subject,
-        html,
-      });
+    const maxRetries = parseInt(process.env.EMAIL_MAX_RETRIES || '2', 10);
+    const baseDelay = parseInt(process.env.EMAIL_RETRY_BASE_MS || '1000', 10);
 
-      const duration = Date.now() - emailStart;
-      console.log(`[EMAIL] ✓ Sent to ${to} (${duration}ms) | MessageID: ${info.messageId}`);
-      return true;
-    } catch (error: any) {
-      const duration = Date.now() - emailStart;
-      console.error(`[EMAIL] ✗ FAILED to send to ${to} (${duration}ms):`, {
-        code: error?.code,
-        message: error?.message,
-        command: error?.command,
-      });
-      // Throw the error so callers can handle it (especially background callers)
-      throw error;
+    const transientCodes = new Set([
+      'ETIMEDOUT',
+      'ECONNRESET',
+      'EPIPE',
+      'ENOTFOUND',
+      'EAI_AGAIN',
+      'ECONNREFUSED',
+      'EHOSTUNREACH',
+    ]);
+
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    let lastError: any = null;
+
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        console.log(`[EMAIL] Sending to ${to} (attempt ${attempt}): "${subject}"`);
+
+        const info = await this.transporter.sendMail({
+          from: process.env.GMAIL_USER || 'noreply@geowaste.com',
+          to,
+          subject,
+          html,
+        });
+
+        const duration = Date.now() - emailStart;
+        console.log(`[EMAIL] ✓ Sent to ${to} (${duration}ms) | MessageID: ${info.messageId}`);
+        return true;
+      } catch (error: any) {
+        lastError = error;
+        const duration = Date.now() - emailStart;
+        const code = error?.code;
+        console.error(`[EMAIL] ✗ Attempt ${attempt} failed to send to ${to} (${duration}ms):`, {
+          code,
+          message: error?.message,
+          command: error?.command,
+        });
+
+        const isTransient = !!code && transientCodes.has(code);
+        const willRetry = attempt <= maxRetries && isTransient;
+
+        if (willRetry) {
+          // exponential backoff with jitter
+          const backoff = baseDelay * Math.pow(2, attempt - 1);
+          const jitter = Math.floor(Math.random() * 300);
+          const delay = backoff + jitter;
+          console.log(`[EMAIL] Retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`);
+          await sleep(delay);
+          continue;
+        }
+
+        // No more retries or non-transient error — throw to let caller handle
+        throw error;
+      }
     }
+
+    // If we exit loop unexpectedly, throw last error
+    throw lastError || new Error('Unknown email send failure');
   }
 
   /**
