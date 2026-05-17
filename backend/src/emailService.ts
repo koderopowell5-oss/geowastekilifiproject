@@ -10,82 +10,45 @@ export class EmailService {
   private verifyPromise: Promise<void>;
 
   constructor() {
-    const smtpHost = process.env.SMTP_HOST || '';
-    const smtpPort = parseInt(process.env.SMTP_PORT || '465', 10);
-    const smtpSecure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : smtpPort === 465;
+    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+    const smtpSecure = (process.env.SMTP_SECURE || 'false') === 'true';
     const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || '';
     const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '';
 
-    const buildTransportOptions = (useHost: boolean, hostPort?: number, secure?: boolean) => {
-      const port = hostPort ?? smtpPort;
-      const isSecure = secure ?? smtpSecure;
-      if (useHost) {
-        return {
-          host: smtpHost,
-          port,
-          secure: isSecure,
-          requireTLS: !isSecure,
-          auth: {
-            user: smtpUser,
-            pass: smtpPass,
-          },
-          tls: {
-            rejectUnauthorized: false,
-          },
-          connectionTimeout: parseInt(process.env.EMAIL_CONNECTION_TIMEOUT_MS || '20000', 10),
-          greetingTimeout: parseInt(process.env.EMAIL_GREETING_TIMEOUT_MS || '20000', 10),
-          socketTimeout: parseInt(process.env.EMAIL_SOCKET_TIMEOUT_MS || '20000', 10),
-        } as any;
-      }
-      return {
-        service: 'gmail',
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-        tls: {
-          rejectUnauthorized: false,
-        },
-        connectionTimeout: parseInt(process.env.EMAIL_CONNECTION_TIMEOUT_MS || '20000', 10),
-        greetingTimeout: parseInt(process.env.EMAIL_GREETING_TIMEOUT_MS || '20000', 10),
-        socketTimeout: parseInt(process.env.EMAIL_SOCKET_TIMEOUT_MS || '20000', 10),
-      } as any;
+    const transportOptions: any = {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+      connectionTimeout: parseInt(process.env.EMAIL_CONNECTION_TIMEOUT_MS || '20000', 10),
+      greetingTimeout: parseInt(process.env.EMAIL_GREETING_TIMEOUT_MS || '20000', 10),
+      socketTimeout: parseInt(process.env.EMAIL_SOCKET_TIMEOUT_MS || '20000', 10),
     };
 
-    const useExplicitHost = Boolean(smtpHost);
-    this.transporter = nodemailer.createTransport(buildTransportOptions(useExplicitHost));
+    if (!smtpSecure && smtpPort === 587) {
+      transportOptions.requireTLS = true;
+    }
 
-    const verifyTransport = async (transport: nodemailer.Transporter, configLabel: string) => {
-      try {
-        await transport.verify();
-        console.log(`[EMAIL] SMTP transporter verified and ready (${configLabel})`);
-      } catch (err: any) {
-        console.warn(`[EMAIL] SMTP transporter verification failed (${configLabel}):`, err && err.message ? err.message : err);
-        throw err;
-      }
-    };
+    this.transporter = nodemailer.createTransport(transportOptions);
 
-    const logConfig = {
-      smtpHost: smtpHost || 'gmail service',
-      smtpPort,
-      smtpSecure,
-    };
-
-    this.verifyPromise = verifyTransport(this.transporter, smtpHost ? `host:${smtpHost}` : 'gmail service')
-      .catch(async (error: any) => {
-        if (smtpHost === 'smtp.gmail.com') {
-          console.warn('[EMAIL] Explicit Gmail SMTP host failed. Falling back to Gmail service transport.');
-          this.transporter = nodemailer.createTransport(buildTransportOptions(false));
-          await verifyTransport(this.transporter, 'gmail service fallback').catch((fallbackErr: any) => {
-            console.warn('[EMAIL] Fallback Gmail service verification failed:', fallbackErr && fallbackErr.message ? fallbackErr.message : fallbackErr);
-            throw fallbackErr;
-          });
-        } else {
-          throw error;
-        }
+    this.verifyPromise = this.transporter.verify().then(() => {
+      console.log('[EMAIL] SMTP transporter verified and ready');
+      console.log('[EMAIL] Using SMTP configuration:', {
+        smtpHost,
+        smtpPort,
+        smtpSecure,
       });
-
-    console.log('[EMAIL] Using SMTP configuration:', logConfig);
+    }).catch((err: any) => {
+      console.warn('[EMAIL] SMTP transporter verification failed:', err && err.message ? err.message : err);
+      throw err;
+    });
 
     if (!smtpUser || !smtpPass) {
       console.warn('Email service not configured. Set SMTP_USER/SMTP_PASS or GMAIL_USER/GMAIL_APP_PASSWORD in .env');
