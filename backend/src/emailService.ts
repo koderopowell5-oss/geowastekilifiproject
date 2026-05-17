@@ -7,56 +7,122 @@ import nodemailer from 'nodemailer';
 
 export class EmailService {
   private transporter: nodemailer.Transporter;
+  private isConfigured: boolean;
 
   constructor() {
     const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
-    const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
-    const smtpSecure = (process.env.SMTP_SECURE || 'false') === 'true';
-    const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || '';
-    const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '';
+    const smtpPort = parseInt(process.env.SMTP_PORT || '465', 10);
+    const smtpSecure = (process.env.SMTP_SECURE || 'true') === 'true';
+
+    const smtpUser =
+      process.env.SMTP_USER ||
+      process.env.GMAIL_USER ||
+      '';
+
+    // remove accidental spaces from Gmail app password
+    const smtpPass = (
+      process.env.SMTP_PASS ||
+      process.env.GMAIL_APP_PASSWORD ||
+      ''
+    ).replace(/\s+/g, '');
+
+    this.isConfigured = !!smtpUser && !!smtpPass;
+
+    if (!this.isConfigured) {
+      console.warn(
+        '[EMAIL] Email service not configured. Missing SMTP credentials.'
+      );
+    }
 
     const transportOptions: any = {
       host: smtpHost,
       port: smtpPort,
       secure: smtpSecure,
+
       auth: {
         user: smtpUser,
         pass: smtpPass,
       },
-      tls: {
-        rejectUnauthorized: false,
-      },
-      connectionTimeout: parseInt(process.env.EMAIL_CONNECTION_TIMEOUT_MS || '20000', 10),
-      greetingTimeout: parseInt(process.env.EMAIL_GREETING_TIMEOUT_MS || '20000', 10),
-      socketTimeout: parseInt(process.env.EMAIL_SOCKET_TIMEOUT_MS || '20000', 10),
+
+      // pooled connections improve cloud reliability
+      pool: true,
+      maxConnections: 3,
+      maxMessages: 100,
+
+      // timeouts
+      connectionTimeout: parseInt(
+        process.env.EMAIL_CONNECTION_TIMEOUT_MS || '30000',
+        10
+      ),
+      greetingTimeout: parseInt(
+        process.env.EMAIL_GREETING_TIMEOUT_MS || '30000',
+        10
+      ),
+      socketTimeout: parseInt(
+        process.env.EMAIL_SOCKET_TIMEOUT_MS || '30000',
+        10
+      ),
     };
 
+    // required for STARTTLS on port 587
     if (!smtpSecure && smtpPort === 587) {
-      transportOptions.requireTLS = true;
+      (transportOptions as any).requireTLS = true;
     }
 
     this.transporter = nodemailer.createTransport(transportOptions);
 
     console.log('[EMAIL] SMTP transporter created');
-    console.log('[EMAIL] Using SMTP configuration:', {
-      smtpHost,
-      smtpPort,
-      smtpSecure,
+
+    console.log('[EMAIL] SMTP configuration:', {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      user: smtpUser ? 'configured' : 'missing',
+      pass: smtpPass ? 'configured' : 'missing',
     });
 
-    if (!smtpUser || !smtpPass) {
-      console.warn('Email service not configured. Set SMTP_USER/SMTP_PASS or GMAIL_USER/GMAIL_APP_PASSWORD in .env');
+    // verify transporter without crashing the app
+    if (this.isConfigured) {
+      this.transporter
+        .verify()
+        .then(() => {
+          console.log('[EMAIL] ✓ SMTP server is ready');
+        })
+        .catch((err: any) => {
+          console.error('[EMAIL] SMTP verification failed:', {
+            code: err?.code,
+            message: err?.message,
+          });
+        });
     }
   }
 
   /**
-   * Send notification email to enumerator
+   * Send notification email
    */
-  async sendNotification(to: string, subject: string, html: string): Promise<boolean> {
+  async sendNotification(
+    to: string,
+    subject: string,
+    html: string
+  ): Promise<boolean> {
+    if (!this.isConfigured) {
+      console.warn(
+        `[EMAIL] Cannot send email to ${to}: SMTP not configured`
+      );
+      return false;
+    }
+
     const emailStart = Date.now();
 
-    const maxRetries = parseInt(process.env.EMAIL_MAX_RETRIES || '2', 10);
-    const baseDelay = parseInt(process.env.EMAIL_RETRY_BASE_MS || '1000', 10);
+    const maxRetries = parseInt(
+      process.env.EMAIL_MAX_RETRIES || '2',
+      10
+    );
+
+    const baseDelay = parseInt(
+      process.env.EMAIL_RETRY_BASE_MS || '1000',
+      10
+    );
 
     const transientCodes = new Set([
       'ETIMEDOUT',
@@ -68,53 +134,77 @@ export class EmailService {
       'EHOSTUNREACH',
     ]);
 
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-    let lastError: any = null;
+    const sleep = (ms: number) =>
+      new Promise((resolve) => setTimeout(resolve, ms));
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
       try {
-        console.log(`[EMAIL] Sending to ${to} (attempt ${attempt}): "${subject}"`);
+        console.log(
+          `[EMAIL] Sending to ${to} (attempt ${attempt})`
+        );
 
         const info = await this.transporter.sendMail({
-          from: process.env.SMTP_FROM || process.env.GMAIL_USER || 'noreply@geowaste.com',
+          from:
+            process.env.SMTP_FROM ||
+            `"GeoWaste Kilifi" <${process.env.SMTP_USER}>`,
+
           to,
           subject,
           html,
         });
 
         const duration = Date.now() - emailStart;
-        console.log(`[EMAIL] ✓ Sent to ${to} (${duration}ms) | MessageID: ${info.messageId}`);
+
+        console.log(
+          `[EMAIL] ✓ Sent successfully (${duration}ms)`
+        );
+
+        console.log('[EMAIL] Message ID:', info.messageId);
+
         return true;
       } catch (error: any) {
-        lastError = error;
         const duration = Date.now() - emailStart;
-        const code = error?.code;
-        console.error(`[EMAIL] ✗ Attempt ${attempt} failed to send to ${to} (${duration}ms):`, {
-          code,
-          message: error?.message,
-          command: error?.command,
-        });
 
-        const isTransient = !!code && transientCodes.has(code);
-        const willRetry = attempt <= maxRetries && isTransient;
+        console.error(
+          `[EMAIL] ✗ Attempt ${attempt} failed (${duration}ms):`,
+          {
+            code: error?.code,
+            message: error?.message,
+            command: error?.command,
+          }
+        );
 
-        if (willRetry) {
-          // exponential backoff with jitter
-          const backoff = baseDelay * Math.pow(2, attempt - 1);
-          const jitter = Math.floor(Math.random() * 300);
+        const isTransient =
+          error?.code && transientCodes.has(error.code);
+
+        const shouldRetry =
+          attempt <= maxRetries && isTransient;
+
+        if (shouldRetry) {
+          const backoff =
+            baseDelay * Math.pow(2, attempt - 1);
+
+          const jitter = Math.floor(Math.random() * 500);
+
           const delay = backoff + jitter;
-          console.log(`[EMAIL] Retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`);
+
+          console.log(
+            `[EMAIL] Retrying in ${delay}ms...`
+          );
+
           await sleep(delay);
+
           continue;
         }
 
-        console.error(`[EMAIL] ✗ Giving up after ${attempt} attempts for ${to}`);
+        console.error(
+          `[EMAIL] ✗ Giving up after ${attempt} attempts`
+        );
+
         return false;
       }
     }
 
-    console.error(`[EMAIL] ✗ Email sending failed after retries for ${to}`);
     return false;
   }
 
@@ -129,12 +219,32 @@ export class EmailService {
   ): Promise<boolean> {
     const html = `
       <h2>New Task Assignment</h2>
+
       <p>Hello ${enumeratorName},</p>
-      <p>You have been assigned to collect data in <strong>${ward}</strong> ward.</p>
-      <p><strong>Target Records:</strong> ${targetRecords}</p>
-      <p>Please log in to the GeoWaste Kilifi dashboard to view more details and start collecting data.</p>
+
+      <p>
+        You have been assigned to collect data in
+        <strong>${ward}</strong> ward.
+      </p>
+
+      <p>
+        <strong>Target Records:</strong>
+        ${targetRecords}
+      </p>
+
+      <p>
+        Please log in to the GeoWaste Kilifi dashboard
+        to begin your assignment.
+      </p>
+
       <hr>
-      <p><em>This is an automated message. Please do not reply to this email.</em></p>
+
+      <p>
+        <em>
+          This is an automated message.
+          Please do not reply.
+        </em>
+      </p>
     `;
 
     return this.sendNotification(
@@ -252,18 +362,46 @@ export class EmailService {
   ): Promise<boolean> {
     const html = `
       <h2>Password Reset Request</h2>
+
       <p>Hello ${enumeratorName},</p>
-      <p>We received a request to reset your password. Click the link below to proceed:</p>
+
+      <p>
+        We received a request to reset your password.
+      </p>
+
       <p style="margin: 24px 0;">
-        <a href="${resetLink}" style="background-color: #329D9C; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+        <a
+          href="${resetLink}"
+          style="
+            background:#329D9C;
+            color:white;
+            padding:12px 24px;
+            text-decoration:none;
+            border-radius:4px;
+            display:inline-block;
+          "
+        >
           Reset Password
         </a>
       </p>
-      <p><strong>This link will expire in ${expiryMinutes} minutes.</strong></p>
-      <p>If you didn't request a password reset, you can safely ignore this email.</p>
+
+      <p>
+        <strong>
+          This link expires in ${expiryMinutes} minutes.
+        </strong>
+      </p>
+
+      <p>
+        If you did not request this reset,
+        you can safely ignore this email.
+      </p>
+
       <hr>
-      <p style="font-size: 12px; color: #666;">
-        <em>This is an automated message from GeoWaste Kilifi. Please do not reply to this email.</em>
+
+      <p style="font-size:12px;color:#666;">
+        <em>
+          This is an automated message from GeoWaste Kilifi.
+        </em>
       </p>
     `;
 
@@ -275,7 +413,7 @@ export class EmailService {
   }
 
   /**
-   * Static method for password reset service
+   * Static helper
    */
   static async sendPasswordResetEmail(
     enumeratorEmail: string,
@@ -284,7 +422,13 @@ export class EmailService {
     expiryMinutes: number
   ): Promise<boolean> {
     const service = new EmailService();
-    return service.sendPasswordResetEmail(enumeratorEmail, enumeratorName, resetLink, expiryMinutes);
+
+    return service.sendPasswordResetEmail(
+      enumeratorEmail,
+      enumeratorName,
+      resetLink,
+      expiryMinutes
+    );
   }
 }
 
