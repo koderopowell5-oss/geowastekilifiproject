@@ -7,7 +7,6 @@ import nodemailer from 'nodemailer';
 
 export class EmailService {
   private transporter: nodemailer.Transporter;
-  private verifyPromise: Promise<void>;
 
   constructor() {
     const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
@@ -38,16 +37,11 @@ export class EmailService {
 
     this.transporter = nodemailer.createTransport(transportOptions);
 
-    this.verifyPromise = this.transporter.verify().then(() => {
-      console.log('[EMAIL] SMTP transporter verified and ready');
-      console.log('[EMAIL] Using SMTP configuration:', {
-        smtpHost,
-        smtpPort,
-        smtpSecure,
-      });
-    }).catch((err: any) => {
-      console.warn('[EMAIL] SMTP transporter verification failed:', err && err.message ? err.message : err);
-      throw err;
+    console.log('[EMAIL] SMTP transporter created');
+    console.log('[EMAIL] Using SMTP configuration:', {
+      smtpHost,
+      smtpPort,
+      smtpSecure,
     });
 
     if (!smtpUser || !smtpPass) {
@@ -78,17 +72,12 @@ export class EmailService {
 
     let lastError: any = null;
 
-    // Ensure transporter verification and fallback logic completes before sending
-    if (this.verifyPromise) {
-      await this.verifyPromise;
-    }
-
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
       try {
         console.log(`[EMAIL] Sending to ${to} (attempt ${attempt}): "${subject}"`);
 
         const info = await this.transporter.sendMail({
-          from: process.env.GMAIL_USER || 'noreply@geowaste.com',
+          from: process.env.SMTP_FROM || process.env.GMAIL_USER || 'noreply@geowaste.com',
           to,
           subject,
           html,
@@ -120,13 +109,13 @@ export class EmailService {
           continue;
         }
 
-        // No more retries or non-transient error — throw to let caller handle
-        throw error;
+        console.error(`[EMAIL] ✗ Giving up after ${attempt} attempts for ${to}`);
+        return false;
       }
     }
 
-    // If we exit loop unexpectedly, throw last error
-    throw lastError || new Error('Unknown email send failure');
+    console.error(`[EMAIL] ✗ Email sending failed after retries for ${to}`);
+    return false;
   }
 
   /**

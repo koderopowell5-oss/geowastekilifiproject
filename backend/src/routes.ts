@@ -1209,12 +1209,16 @@ router.post('/records/:id/comments', authMiddleware, async (req: AuthRequest, re
       [id]
     );
     if (recordResult.rows[0]?.enumerator_email && recordResult.rows[0].enumerator_email !== req.user?.email) {
-      await emailService.sendCommentEmail(
-        recordResult.rows[0].enumerator_email,
-        req.user?.name || 'Administrator',
-        Number(id),
-        content
-      );
+      try {
+        await emailService.sendCommentEmail(
+          recordResult.rows[0].enumerator_email,
+          req.user?.name || 'Administrator',
+          Number(id),
+          content
+        );
+      } catch (emailError: any) {
+        console.warn('Comment notification failed, continuing request:', emailError?.message || emailError);
+      }
     }
 
     return res.status(201).json({
@@ -1351,12 +1355,16 @@ router.post('/assignments', authMiddleware, requireAdmin, async (req: AuthReques
     // Get enumerator email and send assignment notification
     const enumResult = await pool.query('SELECT email, name FROM enumerators WHERE id = $1', [enumerator_id]);
     if (enumResult.rows[0]) {
-      await emailService.sendAssignmentEmail(
-        enumResult.rows[0].email,
-        enumResult.rows[0].name,
-        ward,
-        target_records || 0
-      );
+      try {
+        await emailService.sendAssignmentEmail(
+          enumResult.rows[0].email,
+          enumResult.rows[0].name,
+          ward,
+          target_records || 0
+        );
+      } catch (emailError: any) {
+        console.warn('Assignment notification failed, continuing request:', emailError?.message || emailError);
+      }
     }
 
     return res.status(201).json({
