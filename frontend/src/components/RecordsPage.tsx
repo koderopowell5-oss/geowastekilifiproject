@@ -1,130 +1,114 @@
-import React from 'react';
-import { WasteSiteRecord } from '../../../types';
-import { FileText, Download, X, Trash2 } from 'lucide-react';
-import { wasteApiService } from '../services/wasteApi';
-import { useNotification } from '../context/NotificationContext';
+import React, { useMemo } from 'react';
+import { FileText, Download, X } from 'lucide-react';
+import {
+  SubmissionRow,
+  SurveyFieldSchema,
+  getSortedFieldKeys,
+  getFieldType,
+  formatResponseValue,
+  getRecordImageUrl,
+  getRecordLocation,
+  formatLocationValue,
+} from '../utils/dynamicSurvey';
 
-interface RecordsPageProps {
-  sites: WasteSiteRecord[];
-  onSitesChange?: (sites: WasteSiteRecord[]) => void;
+interface FieldCount {
+  name: string;
+  value: number;
 }
 
-export const RecordsPage: React.FC<RecordsPageProps> = ({ sites, onSitesChange }) => {
+interface RecordsPageProps {
+  records: SubmissionRow[];
+  fieldSchemas: SurveyFieldSchema[];
+  dynamicFields?: FieldCount[];
+}
+
+export const RecordsPage: React.FC<RecordsPageProps> = ({ records, fieldSchemas, dynamicFields: dynamicFieldsProp }) => {
   const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
-  const [deletingId, setDeletingId] = React.useState<number | null>(null);
-  const [sitesData, setSitesData] = React.useState<WasteSiteRecord[]>(sites);
-  const { showSuccess, showError } = useNotification();
 
-  // Update local state when props change
-  React.useEffect(() => {
-    setSitesData(sites);
-  }, [sites]);
-  const formatArrayOrString = (data: any): string => {
-    if (Array.isArray(data)) return data.join(', ');
-    if (typeof data === 'string') return data;
-    return '—';
-  };
+  const dynamicFields = Array.isArray(dynamicFieldsProp) && dynamicFieldsProp.length > 0
+    ? dynamicFieldsProp
+    : [];
 
-  const handleDeleteRecord = async (id: number, ward: string) => {
-    if (!window.confirm(`Delete record #${id} from ${ward}? This action cannot be undone.`)) {
-      return;
+  const visibleFieldColumns = useMemo(() => {
+    if (!records.length) return [];
+    return getSortedFieldKeys(records, fieldSchemas, 6);
+  }, [records, fieldSchemas]);
+
+  const getImageUrl = (record: SubmissionRow) => getRecordImageUrl(record, fieldSchemas);
+  const getLocationLabel = (record: SubmissionRow) => formatLocationValue(record, fieldSchemas);
+
+  const formatCellValue = (record: SubmissionRow, key: string, type: string) => {
+    if (key === 'id') return record.id;
+    if (key === 'survey_title') return record.survey_title || '—';
+    if (key === 'enumerator_email') return record.enumerator_email || '—';
+    if (key === 'created_at') {
+      return record.created_at ? new Date(String(record.created_at)).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
     }
 
-    try {
-      setDeletingId(id);
-      await wasteApiService.deleteWasteSite(id);
-      
-      const updatedSites = sitesData.filter(s => s.id !== id);
-      setSitesData(updatedSites);
-      onSitesChange?.(updatedSites);
-      
-      showSuccess(`Record #${id} has been deleted successfully`);
-    } catch (error: any) {
-      showError(error.message || 'Failed to delete record');
-    } finally {
-      setDeletingId(null);
-    }
+    return formatResponseValue(record.response_data?.[key], type);
   };
 
   const exportToCSV = () => {
-    if (sites.length === 0) {
+    if (records.length === 0) {
       alert('No records to export');
       return;
     }
 
-    const headers = [
-      'ID', 'Ward', 'Settlement Type', 'Household Size', 'Waste Types', 'Waste Quantity',
-      'Waste Separation', 'Disposal Method', 'Distance to Site', 'Collection Frequency',
-      'Road Access', 'Distance to Road', 'Waste Near Home', 'Distance to Waste', 'Impacts',
-      'Nearby Features', 'Recommended Distance', 'Preferred Location', 'Distance Weight',
-      'Water Weight', 'Road Weight', 'Slope Weight', 'Landuse Weight', 'Terrain', 'Flooding',
-      'Policy Awareness', 'Support New Site', 'Preferred Management', 'Challenges',
-      'Suggested Location', 'Latitude', 'Longitude', 'Image URL', 'Enumerator Email',
-      'Created At', 'Updated At'
-    ];
+    const columns = ['image_url', 'id', 'survey_title', 'enumerator_email', 'created_at', 'location', ...visibleFieldColumns.map((col) => col.key)];
+    const headers = ['Image', 'ID', 'Form', 'Enumerator', 'Submitted', 'Location', ...visibleFieldColumns.map((col) => col.label)];
 
-    const rows = sites.map(site => [
-      site.id || '',
-      site.ward || '',
-      site.settlement_type || '',
-      site.household_size || '',
-      formatArrayOrString(site.waste_types),
-      site.waste_quantity || '',
-      site.waste_separation ? 'Yes' : 'No',
-      site.disposal_method || '',
-      site.distance_to_site || '',
-      site.collection_frequency || '',
-      site.road_access || '',
-      site.distance_to_road || '',
-      site.waste_near_home ? 'Yes' : 'No',
-      site.distance_to_waste || '',
-      formatArrayOrString(site.impacts),
-      formatArrayOrString(site.nearby_features),
-      site.recommended_distance || '',
-      formatArrayOrString(site.preferred_location),
-      site.distance_weight || '',
-      site.water_weight || '',
-      site.road_weight || '',
-      site.slope_weight || '',
-      site.landuse_weight || '',
-      site.terrain || '',
-      site.flooding || '',
-      site.policy_awareness ? 'Yes' : 'No',
-      site.support_new_site || '',
-      site.preferred_management || '',
-      (site.challenges || '').replace(/"/g, '""'), // Escape quotes
-      (site.suggested_location || '').replace(/"/g, '""'),
-      site.latitude || '',
-      site.longitude || '',
-      site.image_url || '',
-      site.enumerator_email || '',
-      site.created_at ? new Date(site.created_at).toISOString() : '',
-      site.updated_at ? new Date(site.updated_at).toISOString() : '',
-    ]);
+    const rows = records.map((record) =>
+      columns.map((key) => {
+        if (key === 'image_url') {
+          return getImageUrl(record) || '—';
+        }
+        if (key === 'location') {
+          return getLocationLabel(record);
+        }
+        const type = key === 'survey_title' || key === 'enumerator_email' || key === 'created_at' || key === 'location'
+          ? 'text'
+          : getFieldType(key, record.survey_id, fieldSchemas);
+        return String(formatCellValue(record, key, type));
+      })
+    );
 
     const csvContent = [
-      headers.map(h => `"${h}"`).join(','),
-      ...rows.map(row => row.map(cell => {
+      headers.map((h) => `"${h}"`).join(','),
+      ...rows.map((row) => row.map((cell) => {
         const cellStr = String(cell || '');
         return cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')
           ? `"${cellStr.replace(/"/g, '""')}"`
           : `"${cellStr}"`;
-      }).join(','))
+      }).join(',')),
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    
     const timestamp = new Date().toISOString().split('T')[0];
+
     link.setAttribute('href', url);
     link.setAttribute('download', `geowaste-records-${timestamp}.csv`);
     link.style.visibility = 'hidden';
-    
+
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
+
+  const renderHeaderCell = (key: string, label: string) => (
+    <th key={key} className="px-3 sm:px-4 py-2 sm:py-3 text-left text-[9px] sm:text-[11px] font-semibold text-[#205072] uppercase tracking-wide whitespace-nowrap border-b border-[#CFF4D2]/40">
+      {label}
+    </th>
+  );
+
+  const headerColumns = [
+    { key: 'id', label: 'ID' },
+    { key: 'survey_title', label: 'Form' },
+    { key: 'enumerator_email', label: 'Enumerator' },
+    { key: 'created_at', label: 'Submitted' },
+    ...visibleFieldColumns.map((col) => ({ key: col.key, label: col.label }))
+  ];
 
   return (
     <div className="bg-white rounded-xl sm:rounded-2xl border border-[#CFF4D2]/60 overflow-hidden">
@@ -135,10 +119,10 @@ export const RecordsPage: React.FC<RecordsPageProps> = ({ sites, onSitesChange }
           </div>
           <div>
             <h2 className="text-[13px] sm:text-[14px] font-bold text-[#205072]">Enumerator Records</h2>
-            <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5">{sites.length} submissions</p>
+            <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5">{records.length} submissions</p>
           </div>
         </div>
-        {sites.length > 0 && (
+        {records.length > 0 && (
           <button
             onClick={exportToCSV}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-[#329D9C]/10 hover:bg-[#329D9C]/20 text-[#329D9C] rounded-lg transition-colors text-[11px] font-semibold"
@@ -149,84 +133,89 @@ export const RecordsPage: React.FC<RecordsPageProps> = ({ sites, onSitesChange }
           </button>
         )}
       </div>
+
       <div className="overflow-x-auto">
-        <table className="w-full">
+        {dynamicFields.length > 0 && (
+          <div className="px-4 sm:px-6 py-3 border-b border-[#CFF4D2]/30 bg-white">
+            <div className="flex flex-wrap gap-2 items-center">
+              {dynamicFields.map((f) => (
+                <div key={f.name} className="text-[10px] sm:text-[11px] bg-[#f6fbf8] px-2 py-1 rounded-lg text-[#205072]">
+                  {f.name.replace(/_/g, ' ')}: <span className="font-semibold">{f.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+            <table className="w-full table-auto">
           <thead>
             <tr className="bg-[#f0faf5]">
-              {['Image', 'ID', 'Ward', 'Settlement', 'H/hold', 'Waste Types', 'Qty', 'Disposal', 'Coordinates', 'Date', 'Action'].map((h) => (
-                <th key={h} className="px-3 sm:px-4 py-2 sm:py-3 text-left text-[9px] sm:text-[11px] font-semibold text-[#205072] uppercase tracking-wide whitespace-nowrap border-b border-[#CFF4D2]/40">{h}</th>
-              ))}
+              {headerColumns.map((col) => renderHeaderCell(col.key, col.label))}
             </tr>
           </thead>
           <tbody>
-            {sitesData.map((site, idx) => (
-              <tr key={site.id} className={`border-b border-[#CFF4D2]/30 hover:bg-[#f0faf5]/60 transition-colors ${idx % 2 === 0 ? '' : 'bg-[#f0faf5]/20'}`}>
-                <td className="px-3 sm:px-4 py-2 sm:py-3">
-                  {site.image_url ? (
-                    <img 
-                      src={site.image_url} 
-                      alt="Record" 
-                      onClick={() => setSelectedImage(site.image_url!)}
-                      className="w-10 h-10 rounded-lg object-cover hover:shadow-md transition-shadow cursor-pointer"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-lg bg-[#f0faf5] flex items-center justify-center text-[#ccc] text-xs">—</div>
-                  )}
-                </td>
-                <td className="px-3 sm:px-4 py-2 sm:py-3">
-                  <span className="text-[9px] sm:text-[11px] font-bold text-white bg-[#329D9C] px-2 py-0.5 rounded-lg">{site.id}</span>
-                </td>
-                <td className="px-3 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-[12px] font-medium text-[#205072] whitespace-nowrap">{site.ward}</td>
-                <td className="px-3 sm:px-4 py-2 sm:py-3">
-                  <span className={`text-[9px] sm:text-[10px] font-semibold px-2 py-0.5 rounded-lg ${
-                    site.settlement_type === 'Formal' ? 'bg-[#205072]/10 text-[#205072]' :
-                    site.settlement_type === 'Informal' ? 'bg-[#329D9C]/10 text-[#329D9C]' :
-                    'bg-[#56C596]/10 text-[#56C596]'
-                  }`}>{site.settlement_type}</span>
-                </td>
-                <td className="px-3 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-[12px] text-gray-500">{site.household_size}</td>
-                <td className="px-3 sm:px-4 py-2 sm:py-3 text-[9px] sm:text-[11px] text-gray-500 max-w-[100px] sm:max-w-[140px] truncate">{formatArrayOrString(site.waste_types)}</td>
-                <td className="px-3 sm:px-4 py-2 sm:py-3 text-[9px] sm:text-[11px] text-gray-500 whitespace-nowrap">{site.waste_quantity || '—'}</td>
-                <td className="px-3 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-[12px] text-[#205072] whitespace-nowrap">{site.disposal_method}</td>
-                <td className="px-3 sm:px-4 py-2 sm:py-3 text-[8px] sm:text-[10px] font-mono text-gray-400 whitespace-nowrap">
-                  {(+site.latitude).toFixed(4)}, {(+site.longitude).toFixed(4)}
-                </td>
-                <td className="px-3 sm:px-4 py-2 sm:py-3 text-[9px] sm:text-[11px] text-gray-400 whitespace-nowrap">
-                  {site.created_at ? new Date(site.created_at as string).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}
-                </td>
-                <td className="px-3 sm:px-4 py-2 sm:py-3 text-center whitespace-nowrap">
-                  <button
-                    onClick={() => handleDeleteRecord(site.id!, site.ward)}
-                    disabled={deletingId === site.id}
-                    className="inline-flex items-center justify-center p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Delete record"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </td>
+            {records.map((record, idx) => (
+              <tr
+                key={record.id}
+                className={`border-b border-[#CFF4D2]/30 hover:bg-[#f0faf5]/60 transition-colors ${idx % 2 === 0 ? '' : 'bg-[#f0faf5]/20'}`}
+                data-latitude={record.latitude ?? getRecordLocation(record, fieldSchemas)?.latitude}
+                data-longitude={record.longitude ?? getRecordLocation(record, fieldSchemas)?.longitude}
+              >
+                {headerColumns.map((col) => {
+                  const imageUrl = col.key === 'image_url' ? getImageUrl(record) : undefined;
+                  const locationLabel = col.key === 'location' ? getLocationLabel(record) : undefined;
+                  const cellType = col.key === 'image_url' || col.key === 'location' || col.key === 'survey_title' || col.key === 'enumerator_email' || col.key === 'created_at'
+                    ? 'text'
+                    : getFieldType(col.key, record.survey_id, fieldSchemas);
+
+                  return (
+                    <td
+                      key={col.key}
+                      className="px-3 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-[12px] text-[#205072] whitespace-nowrap max-w-[180px] overflow-hidden text-ellipsis"
+                    >
+                      {col.key === 'image_url' ? (
+                        imageUrl ? (
+                          <img
+                            src={imageUrl}
+                            alt="Record"
+                            onClick={() => setSelectedImage(imageUrl)}
+                            className="w-10 h-10 rounded-lg object-cover cursor-pointer hover:shadow-md"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-[#f0faf5] flex items-center justify-center text-[#ccc] text-xs">—</div>
+                        )
+                      ) : col.key === 'location' ? (
+                        <span>{locationLabel}</span>
+                      ) : (
+                        formatCellValue(record, col.key, cellType)
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
         </table>
-        {sitesData.length === 0 && (
+
+        {records.length === 0 && (
           <div className="py-8 sm:py-16 text-center text-gray-400 text-[11px] sm:text-sm">No records found</div>
         )}
       </div>
-      {sitesData.length > 0 && (
+
+      {records.length > 0 && (
         <div className="px-4 sm:px-6 py-2 sm:py-3 bg-[#f0faf5] border-t border-[#CFF4D2]/40">
-          <p className="text-[10px] sm:text-[11px] text-gray-400">{sitesData.length} total records</p>
+          <p className="text-[10px] sm:text-[11px] text-gray-400">{records.length} total records</p>
         </div>
       )}
 
-      {/* Image Modal */}
       {selectedImage && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
           onClick={() => setSelectedImage(null)}
         >
-          <div 
+          <div
             className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-auto relative"
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setSelectedImage(null)}
@@ -234,11 +223,7 @@ export const RecordsPage: React.FC<RecordsPageProps> = ({ sites, onSitesChange }
             >
               <X size={20} className="text-gray-600" />
             </button>
-            <img 
-              src={selectedImage} 
-              alt="Full size" 
-              className="w-full h-auto"
-            />
+            <img src={selectedImage} alt="Full size" className="w-full h-auto" />
             <div className="p-4 border-t border-gray-200 bg-gray-50">
               <p className="text-xs text-gray-500">Click outside or the X button to close</p>
             </div>

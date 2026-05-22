@@ -13,6 +13,8 @@ export interface PendingSignup {
   name: string;
   ward: string;
   phone: string;
+  project_name?: string;
+  account_type?: string;
 }
 
 export class OTPService {
@@ -39,15 +41,26 @@ export class OTPService {
 
     try {
       await pool.query(
-        `INSERT INTO pending_signups (email, password, name, ward, phone, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO pending_signups (email, password, name, ward, phone, project_name, account_type, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (email) DO UPDATE SET 
          password = EXCLUDED.password,
          name = EXCLUDED.name,
          ward = EXCLUDED.ward,
          phone = EXCLUDED.phone,
+         project_name = EXCLUDED.project_name,
+         account_type = EXCLUDED.account_type,
          expires_at = EXCLUDED.expires_at`,
-        [signupData.email, signupData.password, signupData.name, signupData.ward, signupData.phone, expiresAt]
+        [
+          signupData.email,
+          signupData.password,
+          signupData.name,
+          signupData.ward,
+          signupData.phone,
+          signupData.project_name || null,
+          signupData.account_type || 'enumerator',
+          expiresAt,
+        ]
       );
     } catch (error: any) {
       console.error('Error saving pending signup:', error.message);
@@ -80,7 +93,7 @@ export class OTPService {
         <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 500px; margin: 0 auto;">
           <h2 style="color: #205072; margin-bottom: 20px;">Email Verification</h2>
           <p style="font-size: 16px; color: #1c3a2e; margin-bottom: 20px;">
-            Your OTP for GeoWaste Kilifi registration is:
+            Your OTP for GeoKollect registration is:
           </p>
           
           <div style="background: #f6fbf8; border: 2px dashed #329D9C; border-radius: 10px; padding: 20px; text-align: center; margin: 30px 0;">
@@ -100,14 +113,14 @@ export class OTPService {
           
           <hr style="border: none; border-top: 1px solid #e2ede8; margin: 30px 0;">
           <p style="font-size: 11px; color: #7a9a8a; text-align: center; margin: 0;">
-            GeoWaste Kilifi • Data Collection System
+            GeoKollect • Data Collection System
           </p>
         </div>
       `;
 
       const emailSent = await this.emailService.sendNotification(
         email,
-        'GeoWaste Kilifi - Email Verification Code',
+        'GeoKollect - Email Verification Code',
         html
       );
 

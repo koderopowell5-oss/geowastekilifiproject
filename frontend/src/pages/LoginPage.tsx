@@ -58,7 +58,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup, onNavi
           <div className="w-16 h-16 rounded-2xl bg-[#56C596] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#56C596]/20">
             <LogIn size={30} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-[#205072]">GeoWaste Kilifi</h1>
+          <h1 className="text-2xl font-bold text-[#205072]">GeoKollect</h1>
           <p className="text-[13px] text-[#329D9C] mt-1 font-medium">Enumerator Portal</p>
         </div>
 

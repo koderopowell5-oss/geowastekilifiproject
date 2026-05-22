@@ -1,7 +1,7 @@
-# GeoWaste Kilifi - PostgreSQL Database Setup Script
+# GeoKollect - PostgreSQL Database Setup Script
 # Run this with Administrator privileges
 
-Write-Host "=== GeoWaste Kilifi Database Setup ===" -ForegroundColor Green
+Write-Host "=== GeoKollect Database Setup ===" -ForegroundColor Green
 
 # Check if running as admin
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")

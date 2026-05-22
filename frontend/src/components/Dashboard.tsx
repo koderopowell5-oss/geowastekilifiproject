@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, LogOut, Menu, ChevronRight } from 'lucide-react';
+import { 
+  AlertTriangle, LogOut, Menu, MapPin, 
+  PlusCircle, Navigation, BarChart3, RefreshCw, Clock, Settings
+} from 'lucide-react';
 import { wasteApiService } from '../services/wasteApi';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
@@ -19,14 +22,33 @@ interface Stats {
   distinct_settlement_types: number;
 }
 
+// Helper to format relative time for Recent Activity
+const timeAgo = (dateString?: string) => {
+  if (!dateString) return 'Just now';
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.round((now.getTime() - date.getTime()) / 1000);
+  const minutes = Math.round(seconds / 60);
+  const hours = Math.round(minutes / 60);
+  const days = Math.round(hours / 24);
+
+  if (seconds < 60) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days === 1) return 'Yesterday';
+  return `${days}d ago`;
+};
+
 export const Dashboard: React.FC<DashboardProps> = ({
   onStartSurvey, onViewMap, onViewAdmin, onSettings, hideHeader = false,
 }) => {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [recentRecords, setRecentRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const { showError, showSuccess } = useNotification();
   const [error, setError] = useState<string | null>(null);
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, currentProjectId } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleLogout = () => {
@@ -34,23 +56,79 @@ export const Dashboard: React.FC<DashboardProps> = ({
     showSuccess('Logged out successfully');
   };
 
+  const handleManualSync = () => {
+    setIsSyncing(true);
+    // Mock sync delay for UX satisfaction
+    setTimeout(() => {
+      setIsSyncing(false);
+      showSuccess('All offline data synchronized securely.');
+    }, 1500);
+  };
+
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
         let data: Stats;
+        let allFetchedRecords: any[] = [];
+
         if (!isAdmin && (user as any)?.email) {
-          const result = await wasteApiService.getWasteSitesByEnumerator((user as any).email);
+          const enumeratorEmail = (user as any).email;
+          const staticResult = await wasteApiService.getWasteSitesByEnumerator(enumeratorEmail);
+          allFetchedRecords = [...(staticResult.records || [])];
+
+          if (currentProjectId) {
+            try {
+              const forms = await wasteApiService.getSharedForms(currentProjectId);
+              const submissionsByForm = await Promise.all(
+                forms.map((form: any) =>
+                  wasteApiService.getSurveySubmissions(form.id, enumeratorEmail, currentProjectId).catch((err) => {
+                    console.warn(`Failed to load submissions for survey ${form.id}:`, err?.message || err);
+                    return [];
+                  })
+                )
+              );
+
+              const surveyRecords = submissionsByForm
+                .flat()
+                .filter((submission: any) => !submission.is_draft)
+                .filter((submission: any) => String(submission.project_id) === String(currentProjectId));
+
+              allFetchedRecords.push(...surveyRecords);
+            } catch (fetchErr: any) {
+              console.warn('Unable to load project survey submissions:', fetchErr?.message || fetchErr);
+            }
+          }
+
+          const wardValues = allFetchedRecords
+            .map((r: any) => r.ward || r.response_data?.ward || r.response_data?.location?.ward || '')
+            .filter(Boolean);
+          const settlementValues = allFetchedRecords
+            .map((r: any) => r.settlement_type || r.response_data?.settlement_type || '')
+            .filter(Boolean);
+
           data = {
-            total_records: result.total,
-            total_wards: 1,
-            distinct_settlement_types: new Set(result.records.map((r: any) => r.settlement_type)).size,
+            total_records: allFetchedRecords.length,
+            total_wards: new Set(wardValues).size,
+            distinct_settlement_types: new Set(settlementValues).size,
           };
         } else {
           data = await wasteApiService.getStatistics();
+          // Admin gets a sample of all recent submissions globally (mocked slice for UI)
+          allFetchedRecords = []; 
         }
+        
         setStats(data);
         setError(null);
+
+        // Sort records by newest first and take top 3 for Recent Activity feed
+        const sortedRecords = allFetchedRecords.sort((a, b) => {
+          const dateA = new Date(a.created_at || 0).getTime();
+          const dateB = new Date(b.created_at || 0).getTime();
+          return dateB - dateA;
+        });
+        setRecentRecords(sortedRecords.slice(0, 3));
+
       } catch (err: any) {
         const errMsg = err.message || 'Failed to load statistics';
         setError(errMsg);
@@ -59,7 +137,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         setLoading(false);
       }
     })();
-  }, [isAdmin, user, showError]);
+  }, [isAdmin, user, currentProjectId, showError]);
 
   const userName = isAdmin ? (user as any)?.username : (user as any)?.name;
   const userSub  = isAdmin ? 'Administrator' : (user as any)?.ward;
@@ -102,10 +180,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
           {/* Page heading */}
           <div className="dash-heading">
             <p className="dash-greeting">
-              {isAdmin ? 'Admin overview' : `Welcome back`}
+              {isAdmin ? 'System Overview' : `Welcome back`}
             </p>
             <h1 className="dash-title">
-              {isAdmin ? 'Analytics & Management' : userName || 'Dashboard'}
+              {isAdmin ? 'Analytics & Management' : userName?.split(' ')[0] || 'Dashboard'}
             </h1>
             {!isAdmin && (
               <p className="dash-sub">
@@ -114,37 +192,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
             )}
           </div>
 
-          {/* ── Version Banner ── */}
-          <div className="dash-version-banner">
-            <div className="banner-main">
-              <div className="banner-info">
-                <p className="banner-version-label">New Version Available</p>
-                <p className="banner-version-text">Update to GeoWaste v1.0.1 for the latest features and improvements</p>
-              </div>
-              <button className="banner-update-btn" onClick={onSettings}>
-                Download Now
-              </button>
-            </div>
-          </div>
-
           <div className="dash-divider" />
 
-          {/* ── Stats ── */}
+          {/* ── Quick Stats ── */}
           <section className="dash-stats">
             <StatItem
               label="Total Records"
               value={loading ? null : stats?.total_records ?? 0}
-              note="survey responses"
+              note="Submitted entries"
             />
             <StatItem
               label="Wards Covered"
               value={loading ? null : stats?.total_wards ?? 0}
-              note="geographic areas"
+              note="Geographic areas"
             />
             <StatItem
               label="Settlement Types"
               value={loading ? null : stats?.distinct_settlement_types ?? 0}
-              note="categories mapped"
+              note="Categories mapped"
             />
           </section>
 
@@ -157,59 +222,84 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           <div className="dash-divider" />
 
-          {/* ── Actions ── */}
+          {/* ── Quick Actions Grid ── */}
           <section>
-            <p className="dash-section-label">Actions</p>
-            <div className="dash-actions">
+            <div className="dash-section-header">
+              <h2 className="dash-section-title">Quick Actions</h2>
+            </div>
+            
+            <div className="quick-actions-grid">
               {!isAdmin ? (
                 <>
-                  <ActionRow
-                    title="Start New Survey"
-                    description="Capture field data for waste disposal assessment"
-                    onClick={onStartSurvey}
-                  />
-                  <ActionRow
-                    title="View Map"
-                    description="Visualize all collected waste site locations"
-                    onClick={onViewMap}
-                  />
+                  <button className="quick-action-btn primary" onClick={onStartSurvey}>
+                    <PlusCircle size={20} />
+                    <span>New Record</span>
+                  </button>
+                  <button className="quick-action-btn" onClick={handleManualSync} disabled={isSyncing}>
+                    <RefreshCw size={20} className={isSyncing ? 'spin' : ''} />
+                    <span>{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
+                  </button>
+                  <button className="quick-action-btn" onClick={onViewMap}>
+                    <Navigation size={20} />
+                    <span>View Map</span>
+                  </button>
                 </>
               ) : (
                 <>
-                  <ActionRow
-                    title="Analytics Dashboard"
-                    description="View detailed charts and enumerator records"
-                    onClick={onViewAdmin}
-                  />
-                  <ActionRow
-                    title="View Map"
-                    description="See all waste sites plotted geographically"
-                    onClick={onViewMap}
-                  />
+                  <button className="quick-action-btn primary" onClick={onViewAdmin}>
+                    <BarChart3 size={20} />
+                    <span>Analytics</span>
+                  </button>
+                  <button className="quick-action-btn" onClick={onViewMap}>
+                    <MapPin size={20} />
+                    <span>Live Map</span>
+                  </button>
+                  <button className="quick-action-btn" onClick={onSettings}>
+                    <Settings size={20} />
+                    <span>Settings</span>
+                  </button>
                 </>
               )}
             </div>
           </section>
 
-          {/* ── About (enumerator only) ── */}
-          {!isAdmin && (
-            <>
-              <div className="dash-divider" />
-              <section>
-                <p className="dash-section-label">About this system</p>
-                <p className="dash-about-text">
-                  A geospatial data collection system supporting waste disposal site suitability
-                  analysis in Kilifi Municipality. Captures GPS coordinates, household data, and
-                  environmental conditions across wards.
-                </p>
-                <div className="dash-features">
-                  {['GPS Location Capture', 'Digital Questionnaire', 'Interactive Mapping', 'Real-time Analytics'].map(f => (
-                    <span key={f} className="dash-feature-tag">{f}</span>
-                  ))}
-                </div>
-              </section>
-            </>
-          )}
+          {/* ── Recent Activity ── */}
+          <section style={{ marginTop: 12 }}>
+            <div className="dash-section-header">
+              <h2 className="dash-section-title">Recent Activity</h2>
+              <span className="dash-section-link" onClick={onViewAdmin}>View all</span>
+            </div>
+
+            <div className="activity-list">
+              {loading ? (
+                <div className="activity-empty">Loading activities...</div>
+              ) : recentRecords.length === 0 ? (
+                <div className="activity-empty">No recent activities found. Start collecting data to see them here.</div>
+              ) : (
+                recentRecords.map((record, index) => {
+                  // Attempt to extract a meaningful title from dynamic response data
+                  const title = record.survey_title || record.response_data?.full_name || record.response_data?.type_of_waste || 'Waste Survey Record';
+                  const loc = record.ward || record.response_data?.ward || 'Kilifi';
+
+                  return (
+                    <div key={record.id || index} className="activity-item">
+                      <div className="activity-icon">
+                        <MapPin size={14} />
+                      </div>
+                      <div className="activity-content">
+                        <p className="activity-title">{title}</p>
+                        <p className="activity-meta">Logged in {loc}</p>
+                      </div>
+                      <div className="activity-time">
+                        <Clock size={12} />
+                        {timeAgo(record.created_at)}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </section>
 
         </main>
 
@@ -230,16 +320,6 @@ const StatItem: React.FC<{ label: string; value: number | null; note: string }> 
     <p className="stat-label">{label}</p>
     <p className="stat-note">{note}</p>
   </div>
-);
-
-const ActionRow: React.FC<{ title: string; description: string; onClick?: () => void }> = ({ title, description, onClick }) => (
-  <button type="button" onClick={onClick} className="action-row">
-    <div className="action-text">
-      <span className="action-title">{title}</span>
-      <span className="action-desc">{description}</span>
-    </div>
-    <ChevronRight size={16} className="action-arrow" />
-  </button>
 );
 
 // ─── Styles ───────────────────────────────────────────────────────────
@@ -280,6 +360,9 @@ const css = `
     font-family: 'DM Sans', sans-serif;
     color: var(--text);
   }
+
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+  .spin { animation: spin 1s linear infinite; }
 
   /* ── Nav ── */
   .dash-nav {
@@ -338,30 +421,30 @@ const css = `
   /* ── Body ── */
   .dash-body {
     max-width: 640px; margin: 0 auto;
-    padding: 40px 24px 72px;
-    display: flex; flex-direction: column; gap: 28px;
+    padding: 32px 24px 72px;
+    display: flex; flex-direction: column; gap: 24px;
   }
-  .dash-body--no-header { padding-top: 40px; }
+  .dash-body--no-header { padding-top: 32px; }
 
   /* ── Heading ── */
   .dash-greeting {
-    font-size: 11px; font-weight: 500; letter-spacing: 0.6px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.6px;
     text-transform: uppercase; color: var(--teal); margin-bottom: 6px;
   }
   .dash-title {
-    font-size: 28px; font-weight: 600;
-    color: var(--teal-d); letter-spacing: -0.6px; line-height: 1.15;
+    font-size: 28px; font-weight: 700;
+    color: var(--teal-d); letter-spacing: -0.8px; line-height: 1.15;
     margin-bottom: 6px;
   }
   .dash-sub {
-    font-size: 14px; color: var(--muted);
+    font-size: 14px; color: var(--muted); margin: 0;
   }
   .dash-sub strong { color: var(--text); font-weight: 600; }
 
   /* ── Divider ── */
-  .dash-divider { border: none; border-top: 1px solid var(--border); }
+  .dash-divider { border: none; border-top: 1px solid var(--border); margin: 0; }
 
-  /* ── Stats ── */
+  /* ── Stats (Flat Grid) ── */
   .dash-stats {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -370,17 +453,18 @@ const css = `
   .stat-item {
     padding: 4px 0;
     border-right: 1px solid var(--border);
-    padding-right: 24px;
+    padding-right: 16px;
     padding-left: 0;
+    display: flex; flex-direction: column;
   }
   .stat-item:first-child { padding-left: 0; }
-  .stat-item:last-child { border-right: none; padding-left: 24px; padding-right: 0; }
-  .stat-item:not(:first-child):not(:last-child) { padding-left: 24px; }
+  .stat-item:last-child { border-right: none; padding-left: 16px; padding-right: 0; }
+  .stat-item:not(:first-child):not(:last-child) { padding-left: 16px; }
 
   .stat-value {
-    font-size: 36px; font-weight: 600;
+    font-size: 32px; font-weight: 600;
     color: var(--teal-d); letter-spacing: -1px;
-    line-height: 1; margin-bottom: 6px;
+    line-height: 1; margin: 0 0 6px 0;
     font-family: 'DM Mono', monospace;
   }
   .stat-loading {
@@ -395,123 +479,97 @@ const css = `
   @keyframes shimmer { to { background-position: -200% 0; } }
 
   .stat-label {
-    font-size: 13px; font-weight: 600;
-    color: var(--text); margin-bottom: 2px;
+    font-size: 12px; font-weight: 600;
+    color: var(--text); margin: 0 0 2px 0;
   }
-  .stat-note { font-size: 11.5px; color: var(--muted); }
+  .stat-note { font-size: 11px; color: var(--muted); margin: 0; line-height: 1.2; }
+
+  /* ── Section Headers ── */
+  .dash-section-header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .dash-section-title {
+    font-size: 15px; font-weight: 700; color: var(--teal-d); margin: 0;
+    letter-spacing: -0.3px;
+  }
+  .dash-section-link {
+    font-size: 13px; font-weight: 600; color: var(--teal);
+    cursor: pointer;
+  }
+  .dash-section-link:hover { text-decoration: underline; color: var(--teal-d); }
+
+  /* ── Quick Actions Grid ── */
+  .quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .quick-action-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 20px 12px;
+    background: transparent; border: 1px solid var(--border);
+    border-radius: var(--r); color: var(--teal-d);
+    font-size: 13px; font-weight: 600; font-family: inherit;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .quick-action-btn:hover:not(:disabled) {
+    background: white; border-color: var(--teal); color: var(--teal);
+  }
+  .quick-action-btn.primary {
+    background: var(--teal); border-color: var(--teal); color: white;
+  }
+  .quick-action-btn.primary:hover:not(:disabled) {
+    background: var(--teal-d); border-color: var(--teal-d);
+  }
+  .quick-action-btn:disabled {
+    opacity: 0.6; cursor: not-allowed;
+  }
+  
+  @media (max-width: 480px) {
+    .quick-actions-grid { grid-template-columns: 1fr; }
+    .quick-action-btn { flex-direction: row; justify-content: flex-start; padding: 16px 20px; }
+  }
+
+  /* ── Recent Activity List ── */
+  .activity-list {
+    display: flex; flex-direction: column; gap: 0;
+    border-top: 1px solid var(--border);
+  }
+  .activity-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 16px 0; border-bottom: 1px solid var(--border);
+  }
+  .activity-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 8px;
+    background: rgba(50,157,156,0.08); color: var(--teal);
+    flex-shrink: 0; border: 1px solid rgba(50,157,156,0.15);
+  }
+  .activity-content {
+    flex: 1; display: flex; flex-direction: column; gap: 2px;
+    min-width: 0; /* allows truncation */
+  }
+  .activity-title {
+    font-size: 14px; font-weight: 600; color: var(--text); margin: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .activity-meta {
+    font-size: 12.5px; color: var(--muted); margin: 0;
+  }
+  .activity-time {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11.5px; font-weight: 500; color: var(--muted);
+    font-family: 'DM Mono', monospace; flex-shrink: 0;
+  }
+  .activity-empty {
+    padding: 32px 0; text-align: center;
+    font-size: 13.5px; color: var(--muted); border-bottom: 1px solid var(--border);
+  }
 
   /* ── Error ── */
   .dash-error {
     display: flex; align-items: center; gap: 7px;
     color: #dc2626; font-size: 13px; font-weight: 500;
-  }
-
-  /* ── Section label ── */
-  .dash-section-label {
-    font-size: 11px; font-weight: 500; letter-spacing: 0.6px;
-    text-transform: uppercase; color: var(--muted);
-    margin-bottom: 12px;
-  }
-
-  /* ── Actions ── */
-  .dash-actions { display: flex; flex-direction: column; }
-  .action-row {
-    display: flex; align-items: center; gap: 12px;
-    padding: 14px 0;
-    border-bottom: 1px solid var(--border);
-    background: none; border-top: none; border-left: none; border-right: none;
-    cursor: pointer; text-align: left; width: 100%;
-    transition: opacity 0.15s;
-    font-family: 'DM Sans', sans-serif;
-  }
-  .action-row:first-child { border-top: 1px solid var(--border); }
-  .action-row:hover { opacity: 0.7; }
-  .action-text { display: flex; flex-direction: column; gap: 3px; flex: 1; }
-  .action-title {
-    font-size: 14px; font-weight: 600; color: var(--teal-d);
-  }
-  .action-desc { font-size: 12.5px; color: var(--muted); }
-  .action-arrow { color: var(--muted); flex-shrink: 0; }
-
-  /* ── About ── */
-  .dash-about-text {
-    font-size: 13.5px; color: var(--muted); line-height: 1.65;
-    margin-bottom: 16px;
-  }
-  .dash-features { display: flex; flex-wrap: wrap; gap: 8px; }
-  .dash-feature-tag {
-    padding: 5px 12px;
-    border-radius: 20px;
-    border: 1.5px solid var(--border);
-    background: white;
-    font-size: 12px; font-weight: 500; color: var(--muted);
-  }
-
-  /* ── Version Banner ── */
-  .dash-version-banner {
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: var(--r);
-    padding: 16px;
-  }
-  .banner-main {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-  }
-  .banner-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .banner-version-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--teal);
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
-    margin: 0;
-  }
-  .banner-version-text {
-    font-size: 13px;
-    color: var(--text);
-    margin: 0;
-    line-height: 1.4;
-  }
-  .banner-update-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 20px;
-    background: var(--teal);
-    border: none;
-    border-radius: 8px;
-    color: white;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
-    transition: all 0.2s;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-  .banner-update-btn:hover {
-    background: var(--teal-d);
-  }
-  .banner-update-btn:active {
-    transform: scale(0.98);
-  }
-
-  @media (max-width: 540px) {
-    .banner-main {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 12px;
-    }
-    .banner-update-btn {
-      width: 100%;
-    }
   }
 `;

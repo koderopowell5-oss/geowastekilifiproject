@@ -4,6 +4,7 @@
  */
 
 import axios from 'axios';
+import { buildApiUrl, API_BASE_URL } from '../config/api';
 
 export interface UpdateCheckResult {
   updateAvailable: boolean;
@@ -26,10 +27,7 @@ export interface VersionInfo {
 }
 
 class UpdateService {
-  // Try multiple URL sources: env var (preferred), then fallback
-  private apiBaseUrl = process.env.REACT_APP_API_URL || 
-                       process.env.REACT_APP_API_BASE_URL || 
-                       'http://localhost:5000/api';
+  private apiBaseUrl = API_BASE_URL;
   private lastCheckTime = 0;
   private checkInterval = 60 * 60 * 1000; // Check every hour
   private currentVersion = '1.0.2'; // Should match package.json version
@@ -57,7 +55,7 @@ class UpdateService {
     }
 
     try {
-      const endpoint = `${this.apiBaseUrl}/version/check?version=${this.currentVersion}`;
+      const endpoint = `${buildApiUrl('/version/check')}?version=${this.currentVersion}`;
       const response = await axios.get<any>(
         endpoint,
         {
@@ -101,7 +99,7 @@ class UpdateService {
   async getVersionInfo(): Promise<VersionInfo> {
     try {
       const response = await axios.get<any>(
-        `${this.apiBaseUrl}/version`,
+        buildApiUrl('/version'),
         {
           params: {
             currentVersion: this.currentVersion,

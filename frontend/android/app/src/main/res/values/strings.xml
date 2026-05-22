@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">GeoWaste Kilifi</string>
-    <string name="title_activity_main">GeoWaste Kilifi</string>
+    <string name="app_name">GeoKollect</string>
+    <string name="title_activity_main">GeoKollect</string>
     <string name="package_name">com.geowaste.kilifi</string>
     <string name="custom_url_scheme">com.geowaste.kilifi</string>
 </resources>

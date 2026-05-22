@@ -12,10 +12,11 @@ interface ProfileTabProps {
 }
 
 export const ProfileTab: React.FC<ProfileTabProps> = ({ onLogout, showSettings: initialShowSettings, onSettingsClose }) => {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, projects, currentProjectId } = useAuth();
   const { showSuccess, showError } = useNotification();
   const [showGeneralSettings, setShowGeneralSettings] = useState(initialShowSettings || false);
   const [isUploadingPicture, setIsUploadingPicture] = useState(false);
+  const activeProject = projects?.find((project) => project.project.id === currentProjectId);
 
   const handleLogout = () => {
     showSuccess('You have been logged out');
@@ -181,7 +182,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onLogout, showSettings: 
                 </div>
                 <div>
                   <p className="profile-name">
-                    {isAdmin ? (user as any).username : (user as any).name}
+                    {(user as any).name || (user as any).username || 'Administrator'}
                   </p>
                   <span className="profile-role-badge">
                     {isAdmin ? 'Administrator' : 'Enumerator'}
@@ -192,15 +193,48 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onLogout, showSettings: 
               {/* Detail rows */}
               <div className="profile-fields">
                 {isAdmin ? (
-                  <div className="profile-field-row">
-                    <div className="profile-field-icon-wrap">
-                      <Shield size={14} className="profile-field-icon" />
+                  <>
+                    <div className="profile-field-row">
+                      <div className="profile-field-icon-wrap">
+                        <Mail size={14} className="profile-field-icon" />
+                      </div>
+                      <div>
+                        <span className="profile-field-label">Email</span>
+                        <span className="profile-field-value">{(user as any).email}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="profile-field-label">Access Level</span>
-                      <span className="profile-field-value">Full System Access</span>
+                    <div className="profile-field-row">
+                      <div className="profile-field-icon-wrap">
+                        <Shield size={14} className="profile-field-icon" />
+                      </div>
+                      <div>
+                        <span className="profile-field-label">Access Level</span>
+                        <span className="profile-field-value">Full System Access</span>
+                      </div>
                     </div>
-                  </div>
+                    <div className="profile-field-row">
+                      <div className="profile-field-icon-wrap">
+                        <MapPin size={14} className="profile-field-icon" />
+                      </div>
+                      <div>
+                        <span className="profile-field-label">Current Project</span>
+                        <span className="profile-field-value">
+                          {activeProject?.project.name || 'Not assigned'}
+                        </span>
+                      </div>
+                    </div>
+                    {(user as any).phone ? (
+                      <div className="profile-field-row">
+                        <div className="profile-field-icon-wrap">
+                          <Phone size={14} className="profile-field-icon" />
+                        </div>
+                        <div>
+                          <span className="profile-field-label">Phone</span>
+                          <span className="profile-field-value">{(user as any).phone}</span>
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
                 ) : (
                   <>
                     <div className="profile-field-row">
@@ -259,7 +293,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onLogout, showSettings: 
           </button>
 
           {/* Footer */}
-          <p className="profile-footer">GeoWaste Kilifi v1.0</p>
+          <p className="profile-footer">GeoKollect v1.0</p>
 
         </main>
       </div>

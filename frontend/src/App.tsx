@@ -1,33 +1,20 @@
 import React from 'react';
 import { AdminDashboard } from './components/AdminDashboard';
 import { EnumeratorDashboard } from './components/EnumeratorDashboard';
-import { UpdateModal } from './components/UpdateModal';
+import { LoadingScreen } from './components/LoadingScreen';
 import { Auth } from './pages/Auth';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { ToastContainer } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { useVersionCheck } from './hooks/useVersionCheck';
 import './App.css';
 
-const AppContent: React.FC<{
-  updateInfo: any;
-  isUpdateModalOpen: boolean;
-  closeUpdateModal: () => void;
-  dismissUpdate: () => void;
-}> = ({ updateInfo, isUpdateModalOpen, closeUpdateModal, dismissUpdate }) => {
+const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, isAdmin } = useAuth();
 
   // Show loading state
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   // Show consolidated auth pages if not authenticated
@@ -48,28 +35,12 @@ const AppContent: React.FC<{
 };
 
 const App: React.FC = () => {
-  // Version check runs for ALL users, not just authenticated ones
-  const { updateInfo, isUpdateModalOpen, closeUpdateModal, dismissUpdate } = useVersionCheck();
-
   return (
     <ErrorBoundary>
-      {/* Update Modal - shown to all users */}
-      <UpdateModal
-        isOpen={isUpdateModalOpen}
-        updateInfo={updateInfo}
-        onClose={closeUpdateModal}
-        onDismiss={dismissUpdate}
-      />
-
       <AuthProvider>
         <NotificationProvider>
           <ToastContainer />
-          <AppContent
-            updateInfo={updateInfo}
-            isUpdateModalOpen={isUpdateModalOpen}
-            closeUpdateModal={closeUpdateModal}
-            dismissUpdate={dismissUpdate}
-          />
+          <AppContent />
         </NotificationProvider>
       </AuthProvider>
     </ErrorBoundary>

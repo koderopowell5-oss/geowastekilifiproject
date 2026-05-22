@@ -157,7 +157,7 @@ export const OTPSignupPage: React.FC = () => {
         <div className="otp-signup-card">
           <div className="otp-signup-header">
             <h1>Create Your Account</h1>
-            <p>Join GeoWaste Kilifi to start collecting data</p>
+            <p>Join GeoKollect to start collecting data</p>
           </div>
 
           {step === 'details' ? (

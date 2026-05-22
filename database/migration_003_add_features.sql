@@ -193,10 +193,30 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_enumerator_assignments_update 
-BEFORE UPDATE ON enumerator_assignments
-FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_trigger t
+    JOIN pg_class c ON t.tgrelid = c.oid
+    WHERE t.tgname = 'trigger_enumerator_assignments_update'
+      AND c.relname = 'enumerator_assignments'
+  ) THEN
+    CREATE TRIGGER trigger_enumerator_assignments_update
+    BEFORE UPDATE ON enumerator_assignments
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+  END IF;
 
-CREATE TRIGGER trigger_record_comments_update 
-BEFORE UPDATE ON record_comments
-FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_trigger t
+    JOIN pg_class c ON t.tgrelid = c.oid
+    WHERE t.tgname = 'trigger_record_comments_update'
+      AND c.relname = 'record_comments'
+  ) THEN
+    CREATE TRIGGER trigger_record_comments_update
+    BEFORE UPDATE ON record_comments
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
+  END IF;
+END
+$$;

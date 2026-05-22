@@ -1,6 +1,30 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { wasteApiService } from '../services/wasteApi';
 
+export interface EnumeratorProject {
+  project: {
+    id: string;
+    name: string;
+    description?: string;
+    admin_id: string;
+    admin?: {
+      id: string;
+      name: string;
+      email: string;
+      ward?: string;
+      phone?: string;
+    };
+    created_at: string;
+    updated_at: string;
+  };
+  role: {
+    id: number;
+    name: string;
+    permissions: string[];
+  };
+  permissions: string[];
+}
+
 export interface Enumerator {
   id: string | number;
   name: string;
@@ -16,11 +40,14 @@ export type AuthUser = Enumerator;
 
 interface AuthContextType {
   user: AuthUser | null;
+  projects: EnumeratorProject[];
+  currentProjectId: string | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string, ward: string, phone: string) => Promise<void>;
   adminLogin: (username: string, password: string) => Promise<void>;
+  switchProject: (projectId: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -32,34 +59,50 @@ const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const SESSION_STORAGE_KEY = 'auth_user';
 const SESSION_TIMESTAMP_KEY = 'auth_session_timestamp';
 const TOKEN_STORAGE_KEY = 'token';
+const PROJECTS_STORAGE_KEY = 'auth_user_projects';
+const CURRENT_PROJECT_STORAGE_KEY = 'auth_current_project_id';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [projects, setProjects] = useState<EnumeratorProject[]>([]);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Initialize auth state from localStorage
   useEffect(() => {
     const storedUser = localStorage.getItem(SESSION_STORAGE_KEY);
+    const storedProjects = localStorage.getItem(PROJECTS_STORAGE_KEY);
+    const storedProjectId = localStorage.getItem(CURRENT_PROJECT_STORAGE_KEY);
     const sessionTimestamp = localStorage.getItem(SESSION_TIMESTAMP_KEY);
-    
-    if (storedUser && sessionTimestamp) {
+    const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+
+    if (storedUser && sessionTimestamp && storedToken) {
       try {
         const loginTime = parseInt(sessionTimestamp, 10);
         const now = Date.now();
         const isSessionValid = now - loginTime < SESSION_DURATION_MS;
-        
+
         if (isSessionValid) {
-          setUser(JSON.parse(storedUser));
+          const user = JSON.parse(storedUser);
+          setUser(user);
+          setProjects(storedProjects ? JSON.parse(storedProjects) : []);
+          setCurrentProjectId(storedProjectId || null);
           // Renew session timestamp on app load
           localStorage.setItem(SESSION_TIMESTAMP_KEY, now.toString());
         } else {
           // Session expired, clear localStorage
           localStorage.removeItem(SESSION_STORAGE_KEY);
           localStorage.removeItem(SESSION_TIMESTAMP_KEY);
+          localStorage.removeItem(PROJECTS_STORAGE_KEY);
+          localStorage.removeItem(CURRENT_PROJECT_STORAGE_KEY);
+          localStorage.removeItem(TOKEN_STORAGE_KEY);
         }
       } catch (err) {
         localStorage.removeItem(SESSION_STORAGE_KEY);
         localStorage.removeItem(SESSION_TIMESTAMP_KEY);
+        localStorage.removeItem(PROJECTS_STORAGE_KEY);
+        localStorage.removeItem(CURRENT_PROJECT_STORAGE_KEY);
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
       }
     }
     setIsLoading(false);
@@ -87,13 +130,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         status: response.user.status,
       };
 
+      const projects = Array.isArray(response.projects) ? response.projects : [];
+      const currentProjectId = response.current_project_id || (projects[0]?.project?.id ?? null);
+
       setUser(enumerator);
+      setProjects(projects);
+      setCurrentProjectId(currentProjectId);
       localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(enumerator));
+      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
+      localStorage.setItem(CURRENT_PROJECT_STORAGE_KEY, currentProjectId || '');
       localStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString());
       
       // Store auth token for API requests
       if (response.token) {
         localStorage.setItem(TOKEN_STORAGE_KEY, response.token);
+      }
+      
+      // Preserve role/account_type for enumerator state
+      if (!enumerator.account_type) {
+        enumerator.account_type = enumerator.role === 'admin' ? 'admin' : 'enumerator';
+        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(enumerator));
       }
     } catch (error: any) {
       throw new Error(error.message || 'Login failed');
@@ -150,13 +206,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         status: response.user.status,
       };
 
+      const projects = Array.isArray(response.projects) ? response.projects : [];
+      const currentProjectId = response.current_project_id || (projects[0]?.project?.id ?? null);
+
       setUser(admin);
+      setProjects(projects);
+      setCurrentProjectId(currentProjectId);
       localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(admin));
+      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
+      localStorage.setItem(CURRENT_PROJECT_STORAGE_KEY, currentProjectId || '');
       localStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString());
       
       // Store auth token for API requests
       if (response.token) {
         localStorage.setItem(TOKEN_STORAGE_KEY, response.token);
+      }
+      
+      // Ensure account_type is preserved for admin state
+      if (admin.account_type !== 'admin') {
+        admin.account_type = 'admin';
+        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(admin));
       }
     } catch (error: any) {
       throw new Error(error.message || 'Admin login failed');
@@ -167,22 +236,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
+    setProjects([]);
+    setCurrentProjectId(null);
     localStorage.removeItem(SESSION_STORAGE_KEY);
+    localStorage.removeItem(PROJECTS_STORAGE_KEY);
+    localStorage.removeItem(CURRENT_PROJECT_STORAGE_KEY);
     localStorage.removeItem(SESSION_TIMESTAMP_KEY);
     localStorage.removeItem(TOKEN_STORAGE_KEY);
   };
 
   const isAdmin = user ? user.account_type === 'admin' : false;
 
+  const switchProject = async (projectId: string): Promise<void> => {
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    const response = await wasteApiService.switchProject(projectId);
+    const nextProjectId = response.current_project_id || projectId;
+    setCurrentProjectId(nextProjectId);
+    setProjects(Array.isArray(response.projects) ? response.projects : projects);
+    localStorage.setItem(CURRENT_PROJECT_STORAGE_KEY, nextProjectId || '');
+    localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(response.projects || projects));
+  };
+
   return (
     <AuthContext.Provider
       value={{
         user,
+        projects,
+        currentProjectId,
         isAuthenticated: !!user,
         isAdmin,
         login,
         signup,
         adminLogin,
+        switchProject,
         logout,
         isLoading,
       }}

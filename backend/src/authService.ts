@@ -256,11 +256,26 @@ export class AuthService {
   }
 
   /**
-   * Delete an enumerator by ID
+   * Delete an enumerator by ID permanently
    */
   static async deleteEnumerator(id: number): Promise<boolean> {
     const result = await pool.query(
       'DELETE FROM enumerators WHERE id = $1 RETURNING id',
+      [id]
+    );
+
+    return result.rows.length > 0;
+  }
+
+  /**
+   * Deactivate an enumerator by ID (soft delete)
+   */
+  static async deactivateEnumerator(id: number): Promise<boolean> {
+    const result = await pool.query(
+      `UPDATE enumerators
+       SET status = 'inactive', updated_at = NOW()
+       WHERE id = $1
+       RETURNING id`,
       [id]
     );
 

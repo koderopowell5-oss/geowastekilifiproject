@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Settings, LogOut, Trash2, Lock, Bell, Mail, Phone, MapPin,
+  Settings, Trash2, Lock, Bell, Mail, Phone, MapPin,
   AlertCircle, Check, Loader, Eye, EyeOff
 } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
+import { buildApiUrl, getFetchOptions } from '../config/api';
+import { LoadingScreen } from './LoadingScreen';
 
 interface UserProfile {
   id: number;
@@ -22,7 +24,7 @@ export const AccountSettingsPage: React.FC = () => {
   const { showSuccess, showError } = useNotification();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'general' | 'security' | 'notifications'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'security' | 'notifications' | 'application'>('general');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,17 +33,35 @@ export const AccountSettingsPage: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  
+  // Notification preferences
+  const [notificationPrefs, setNotificationPrefs] = useState({
+    emailNotifications: true,
+    surveyReminders: true,
+    submissionConfirmations: true,
+    securityAlerts: true,
+  });
+  
+  // Application preferences
+  const [appPrefs, setAppPrefs] = useState({
+    allowAutoUpdate: false,
+    checkUpdateOnStartup: false,
+  });
 
   useEffect(() => {
     fetchProfile();
+    // Load saved preferences from localStorage
+    const savedNotifPrefs = localStorage.getItem('notificationPreferences');
+    const savedAppPrefs = localStorage.getItem('appPreferences');
+    if (savedNotifPrefs) setNotificationPrefs(JSON.parse(savedNotifPrefs));
+    if (savedAppPrefs) setAppPrefs(JSON.parse(savedAppPrefs));
   }, []);
 
   const fetchProfile = async () => {
     try {
       // In a real app, fetch from /api/profile endpoint
-      const token = localStorage.getItem('token');
       const response = await fetch(buildApiUrl('/profile'), {
-        headers: { 'Authorization': `Bearer ${token}` },
+        ...getFetchOptions(),
       });
 
       if (response.ok) {
@@ -135,18 +155,22 @@ export const AccountSettingsPage: React.FC = () => {
     }
   };
 
+  const handleNotificationPrefsChange = (pref: keyof typeof notificationPrefs) => {
+    const updated = { ...notificationPrefs, [pref]: !notificationPrefs[pref] };
+    setNotificationPrefs(updated);
+    localStorage.setItem('notificationPreferences', JSON.stringify(updated));
+    showSuccess('Notification preference updated');
+  };
+
+  const handleAppPrefsChange = (pref: keyof typeof appPrefs) => {
+    const updated = { ...appPrefs, [pref]: !appPrefs[pref] };
+    setAppPrefs(updated);
+    localStorage.setItem('appPreferences', JSON.stringify(updated));
+    showSuccess('Application preference updated');
+  };
+
   if (isLoading) {
-    return (
-      <>
-        <style>{css}</style>
-        <div className="settings-container">
-          <div className="settings-loading">
-            <Loader size={32} className="spin" />
-            <p>Loading settings...</p>
-          </div>
-        </div>
-      </>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -178,6 +202,12 @@ export const AccountSettingsPage: React.FC = () => {
             onClick={() => setActiveTab('notifications')}
           >
             <Bell size={18} /> Notifications
+          </button>
+          <button
+            className={`settings-tab ${activeTab === 'application' ? 'active' : ''}`}
+            onClick={() => setActiveTab('application')}
+          >
+            <Settings size={18} /> Application
           </button>
         </div>
 
@@ -386,7 +416,11 @@ export const AccountSettingsPage: React.FC = () => {
               <div className="settings-notification-options">
                 <div className="settings-notification-item">
                   <label className="settings-checkbox">
-                    <input type="checkbox" defaultChecked disabled />
+                    <input 
+                      type="checkbox" 
+                      checked={notificationPrefs.emailNotifications}
+                      onChange={() => handleNotificationPrefsChange('emailNotifications')}
+                    />
                     <span>Email Notifications</span>
                   </label>
                   <p>Receive important account notifications via email</p>
@@ -394,15 +428,23 @@ export const AccountSettingsPage: React.FC = () => {
 
                 <div className="settings-notification-item">
                   <label className="settings-checkbox">
-                    <input type="checkbox" defaultChecked disabled />
+                    <input 
+                      type="checkbox" 
+                      checked={notificationPrefs.surveyReminders}
+                      onChange={() => handleNotificationPrefsChange('surveyReminders')}
+                    />
                     <span>Survey Reminders</span>
                   </label>
-                  <p>Get reminded about pending surveys</p>
+                  <p>Get reminded about pending surveys and assignments</p>
                 </div>
 
                 <div className="settings-notification-item">
                   <label className="settings-checkbox">
-                    <input type="checkbox" defaultChecked disabled />
+                    <input 
+                      type="checkbox" 
+                      checked={notificationPrefs.submissionConfirmations}
+                      onChange={() => handleNotificationPrefsChange('submissionConfirmations')}
+                    />
                     <span>Submission Confirmations</span>
                   </label>
                   <p>Receive confirmation when your surveys are submitted</p>
@@ -410,7 +452,11 @@ export const AccountSettingsPage: React.FC = () => {
 
                 <div className="settings-notification-item">
                   <label className="settings-checkbox">
-                    <input type="checkbox" defaultChecked disabled />
+                    <input 
+                      type="checkbox" 
+                      checked={notificationPrefs.securityAlerts}
+                      onChange={() => handleNotificationPrefsChange('securityAlerts')}
+                    />
                     <span>Account Security Alerts</span>
                   </label>
                   <p>Critical alerts about your account security</p>
@@ -420,9 +466,56 @@ export const AccountSettingsPage: React.FC = () => {
               <div className="settings-info-card">
                 <Bell size={18} />
                 <div>
-                  <h4>All Notifications Enabled</h4>
-                  <p>You are currently subscribed to all notification types. You cannot disable critical security notifications.</p>
+                  <h4>Notification Preferences</h4>
+                  <p>Your notification preferences have been saved locally and will be applied to all future notifications.</p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Application Tab */}
+          {activeTab === 'application' && (
+            <div className="settings-section">
+              <h2>Application Settings</h2>
+
+              <div className="settings-notification-options">
+                <div className="settings-notification-item">
+                  <label className="settings-checkbox">
+                    <input 
+                      type="checkbox" 
+                      checked={appPrefs.allowAutoUpdate}
+                      onChange={() => handleAppPrefsChange('allowAutoUpdate')}
+                    />
+                    <span>Allow Automatic Updates</span>
+                  </label>
+                  <p>Automatically download and install app updates when available</p>
+                </div>
+
+                <div className="settings-notification-item">
+                  <label className="settings-checkbox">
+                    <input 
+                      type="checkbox" 
+                      checked={appPrefs.checkUpdateOnStartup}
+                      onChange={() => handleAppPrefsChange('checkUpdateOnStartup')}
+                    />
+                    <span>Check for Updates on Startup</span>
+                  </label>
+                  <p>Notify you about available updates when the app starts</p>
+                </div>
+              </div>
+
+              <div className="settings-info-card">
+                <AlertCircle size={18} />
+                <div>
+                  <h4>Update Management</h4>
+                  <p>You can disable automatic updates and manually control when your app is updated. Update checks and critical security patches will always be performed.</p>
+                </div>
+              </div>
+
+              <div className="settings-app-info">
+                <h3>App Information</h3>
+                <p><strong>Current Version:</strong> {process.env.REACT_APP_VERSION || '1.0.2'}</p>
+                <p><strong>Last Updated:</strong> {new Date().toLocaleDateString()}</p>
               </div>
             </div>
           )}
@@ -836,6 +929,27 @@ const css = `
     font-size: 13px;
     color: #7a9a8a;
     margin: 0;
+  }
+
+  .settings-app-info {
+    margin-top: 32px;
+    padding: 16px;
+    background: #f6fbf8;
+    border: 1.5px solid #e2ede8;
+    border-radius: 8px;
+  }
+
+  .settings-app-info h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #205072;
+    margin: 0 0 12px 0;
+  }
+
+  .settings-app-info p {
+    font-size: 13px;
+    color: #7a9a8a;
+    margin: 8px 0;
   }
 
   @media (max-width: 768px) {

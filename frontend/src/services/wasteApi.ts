@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { WasteSiteRecord, ApiResponse } from '../../../types';
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL, buildApiUrl } from '../config/api';
 
 class WasteApiService {
   private api: AxiosInstance;
@@ -16,11 +16,17 @@ class WasteApiService {
     // Add request interceptor to attach Authorization header
     this.api.interceptors.request.use(
       (config) => {
+        const savedToken = localStorage.getItem('token');
+        if (savedToken) {
+          config.headers.Authorization = `Bearer ${savedToken}`;
+          return config;
+        }
+
         const authUser = localStorage.getItem('auth_user');
         if (authUser) {
           try {
             const user = JSON.parse(authUser);
-            // Set Authorization header with user email or username
+            // Fallback: use email or username if no token is stored
             const token = 'email' in user ? user.email : user.username;
             if (token) {
               config.headers.Authorization = `Bearer ${token}:${Date.now()}`;
@@ -188,6 +194,86 @@ class WasteApiService {
   }
 
   /**
+   * Switch the active project for the user
+   */
+  async switchProject(projectId: string): Promise<any> {
+    const response = await this.api.post<ApiResponse<any>>('/auth/switch-project', {
+      project_id: projectId,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to switch project');
+    }
+    return response.data.data;
+  }
+
+  /**
+   * Get all forms shared with a project for the logged-in enumerator
+   */
+  async getSharedForms(projectId: string): Promise<any[]> {
+    const response = await this.api.get<ApiResponse<any>>(`/projects/${projectId}/shared-forms`);
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to fetch shared forms');
+    }
+    return response.data.data || [];
+  }
+
+  /**
+   * Submit survey response for a dynamic survey
+   */
+  async submitSurveyResponse(
+    surveyId: number,
+    responseData: Record<string, any>,
+    latitude?: number,
+    longitude?: number,
+    isDraft: boolean = false,
+    projectId?: string | null,
+    enumeratorEmail?: string,
+    enumeratorName?: string
+  ): Promise<any> {
+    const response = await this.api.post<ApiResponse<any>>(`/surveys/${surveyId}/submit`, {
+      responseData,
+      latitude,
+      longitude,
+      isDraft,
+      projectId,
+      enumeratorEmail,
+      enumeratorName,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to submit survey');
+    }
+    return response.data.data;
+  }
+
+  /**
+   * Get a survey by ID
+   */
+  async getSurveyById(id: number): Promise<any> {
+    const response = await this.api.get<ApiResponse<any>>(`/surveys/${id}`);
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to fetch survey');
+    }
+    return response.data.data;
+  }
+
+  /**
+   * Get submissions for a given survey
+   */
+  async getSurveySubmissions(surveyId: number, enumeratorEmail?: string, projectId?: string): Promise<any[]> {
+    const params: Record<string, string> = {};
+    if (enumeratorEmail) params.enumeratorEmail = enumeratorEmail;
+    if (projectId) params.projectId = projectId;
+
+    const response = await this.api.get<ApiResponse<any>>(`/surveys/${surveyId}/submissions`, {
+      params: Object.keys(params).length ? params : undefined,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to fetch survey submissions');
+    }
+    return response.data.data || [];
+  }
+
+  /**
    * Get all enumerators
    */
   async getAllEnumerators(): Promise<any[]> {
@@ -199,10 +285,59 @@ class WasteApiService {
   }
 
   /**
+   * Get admin-managed enumerators
+   */
+  async getAdminEnumerators(): Promise<any[]> {
+    const response = await this.api.get<ApiResponse<any>>('/admin/enumerators');
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to fetch admin enumerators');
+    }
+    return response.data.data || [];
+  }
+
+  /**
+   * Create a new enumerator as admin
+   */
+  async createAdminEnumerator(payload: {
+    name: string;
+    email: string;
+    password: string;
+    phone?: string;
+    ward: string;
+    project_id?: string | null;
+  }): Promise<any> {
+    const response = await this.api.post<ApiResponse<any>>('/admin/enumerators', payload);
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to create enumerator');
+    }
+    return response.data.data;
+  }
+
+  /**
+   * Reset an admin-managed enumerator's password
+   */
+  async resetAdminEnumeratorPassword(id: number, newPassword: string): Promise<any> {
+    const response = await this.api.put<ApiResponse<any>>(`/admin/enumerators/${id}/reset-password`, {
+      new_password: newPassword,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to reset password');
+    }
+    return response.data.data;
+  }
+
+  /**
    * Delete an enumerator by ID
    */
   async deleteEnumerator(id: number): Promise<void> {
     const response = await this.api.delete<ApiResponse<any>>(`/auth/enumerators/${id}`);
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to delete enumerator');
+    }
+  }
+
+  async deleteAdminEnumerator(id: number): Promise<void> {
+    const response = await this.api.delete<ApiResponse<any>>(`/admin/enumerators/${id}`);
     if (!response.data.success) {
       throw new Error(response.data.message || 'Failed to delete enumerator');
     }
@@ -254,7 +389,7 @@ class WasteApiService {
    */
   async checkHealth(): Promise<boolean> {
     try {
-      const response = await axios.get(`${API_BASE_URL.replace('/api', '')}/api/health`);
+      const response = await axios.get(buildApiUrl('/health'));
       return response.data.success === true;
     } catch {
       return false;

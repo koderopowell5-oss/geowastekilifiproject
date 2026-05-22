@@ -1,4 +1,4 @@
--- GeoWaste Kilifi Database Schema (No PostGIS)
+-- GeoKollect Database Schema (No PostGIS)
 -- PostgreSQL database solution for waste site mapping
 
 -- Create waste_sites table (without PostGIS geometry)

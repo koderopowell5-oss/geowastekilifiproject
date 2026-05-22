@@ -1,11 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, MapPin, AlertCircle, Check, Loader } from 'lucide-react';
+import { 
+  MapPin, AlertCircle, Check, Loader, 
+  ArrowRight, ArrowLeft, Save, Image as ImageIcon,
+  FileText, Info
+} from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
 import { buildApiUrl } from '../config/api';
+import { wasteApiService } from '../services/wasteApi';
 
 export interface FormField {
   id: string;
-  type: 'text' | 'email' | 'number' | 'select' | 'multiselect' | 'checkbox' | 'textarea' | 'date' | 'time' | 'location' | 'image' | 'rating';
+  type: 'text' | 'email' | 'tel' | 'url' | 'number' | 'select' | 'multiselect' | 'checkbox' | 'textarea' | 'date' | 'time' | 'location' | 'image' | 'rating' | 'signature' | 'file' | 'slider' | 'info_block';
   label: string;
   name: string;
   required: boolean;
@@ -14,6 +20,7 @@ export interface FormField {
   options?: string[];
   minValue?: number;
   maxValue?: number;
+  content?: string;
 }
 
 export interface FormSection {
@@ -39,6 +46,106 @@ interface DynamicSurveyFormProps {
   readOnly?: boolean;
 }
 
+const getAutoCompleteAttribute = (label: string, type: string) => {
+  const l = label.toLowerCase();
+  if (type === 'email' || l.includes('email')) return 'email';
+  if (l.includes('phone') || l.includes('mobile') || l.includes('tel')) return 'tel';
+  if (l === 'full name' || l === 'name') return 'name';
+  if (l.includes('first name')) return 'given-name';
+  if (l.includes('last name') || l.includes('surname')) return 'family-name';
+  if (l.includes('address') && !l.includes('email')) return 'street-address';
+  return 'on'; 
+};
+
+// ─── Signature Pad Component ──────────────────────────────────
+const SignaturePad = ({ value, onChange, readOnly }: { value: string, onChange: (v: string) => void, readOnly: boolean }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas && !value) {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = 150;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#f6fbf8';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  }, [value]);
+
+  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+    if (readOnly) return;
+    setIsDrawing(true);
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx || !canvasRef.current) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
+    ctx.beginPath();
+    ctx.moveTo(clientX - rect.left, clientY - rect.top);
+  };
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawing || readOnly) return;
+    e.preventDefault();
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx || !canvasRef.current) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#205072';
+    ctx.lineTo(clientX - rect.left, clientY - rect.top);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+    if (!readOnly && canvasRef.current) {
+      onChange(canvasRef.current.toDataURL('image/png'));
+    }
+  };
+
+  if (value) {
+    return (
+      <div className="survey-signature-preview">
+        <img src={value} alt="Signature" />
+        {!readOnly && (
+          <button type="button" onClick={() => onChange('')} className="survey-image-clear">
+            Clear Signature
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="survey-signature-pad">
+      <canvas
+        ref={canvasRef}
+        onMouseDown={startDrawing}
+        onMouseMove={draw}
+        onMouseUp={stopDrawing}
+        onMouseOut={stopDrawing}
+        onTouchStart={startDrawing}
+        onTouchMove={draw}
+        onTouchEnd={stopDrawing}
+        style={{ touchAction: 'none' }}
+      />
+      <div className="survey-signature-hint">Use your finger or mouse to sign above</div>
+    </div>
+  );
+};
+
+
 export const DynamicSurveyForm: React.FC<DynamicSurveyFormProps> = ({
   surveyId,
   formConfig,
@@ -46,25 +153,36 @@ export const DynamicSurveyForm: React.FC<DynamicSurveyFormProps> = ({
   readOnly = false,
 }) => {
   const { showSuccess, showError } = useNotification();
+  const { currentProjectId, user } = useAuth();
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDraft, setIsDraft] = useState(false);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locatingPosition, setLocatingPosition] = useState(false);
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const fileInputRefs = useRef<Record<string, HTMLInputElement>>({});
 
-  // Get user's current location
-  const captureLocation = () => {
+  useEffect(() => {
+    setCurrentSectionIndex(0);
+  }, [formConfig]);
+
+  if (!formConfig || !formConfig.sections || formConfig.sections.length === 0) {
+    return <div className="survey-empty-state">No configuration available for this survey.</div>;
+  }
+
+  // FIXED: Updates form data so validation works
+  const captureLocation = (fieldName: string) => {
     setLocatingPosition(true);
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setLocation({
+          const coords = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
-          });
-          showSuccess('Location captured');
+          };
+          setLocation(coords);
+          handleFieldChange(fieldName, `${coords.latitude}, ${coords.longitude}`);
+          showSuccess('Location successfully captured');
           setLocatingPosition(false);
         },
         () => {
@@ -73,73 +191,88 @@ export const DynamicSurveyForm: React.FC<DynamicSurveyFormProps> = ({
         }
       );
     } else {
-      showError('Geolocation not supported');
+      showError('Geolocation not supported by this browser');
       setLocatingPosition(false);
     }
   };
 
-  // Validate form data
-  const validateForm = (): boolean => {
+  const validateFields = (fields: FormField[]): Record<string, string> => {
     const newErrors: Record<string, string> = {};
 
-    formConfig.sections.forEach((section) => {
-      section.fields.forEach((field) => {
-        const value = formData[field.name];
+    fields.forEach((field) => {
+      if (field.type === 'info_block') return; 
+      
+      const value = formData[field.name];
+      const isPhone = field.label.toLowerCase().includes('phone') || field.type === 'tel';
 
-        if (field.required && (!value || (typeof value === 'string' && !value.trim()))) {
-          newErrors[field.name] = `${field.label} is required`;
-        }
+      if (field.required && (value === undefined || value === null || value === '' || (typeof value === 'string' && !value.trim()))) {
+        newErrors[field.name] = 'This field is required';
+      }
 
-        if (value && field.type === 'email') {
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (!emailRegex.test(value)) {
-            newErrors[field.name] = 'Invalid email format';
-          }
+      if (value && field.type === 'email') {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(value)) {
+          newErrors[field.name] = 'Please enter a valid email address';
         }
+      }
 
-        if (value && field.type === 'number') {
-          const num = Number(value);
-          if (isNaN(num)) {
-            newErrors[field.name] = 'Must be a number';
-          } else if (field.minValue !== undefined && num < field.minValue) {
-            newErrors[field.name] = `Minimum value is ${field.minValue}`;
-          } else if (field.maxValue !== undefined && num > field.maxValue) {
-            newErrors[field.name] = `Maximum value is ${field.maxValue}`;
-          }
+      if (value && field.type === 'number' && !isPhone) {
+        const num = Number(value);
+        if (isNaN(num)) {
+          newErrors[field.name] = 'Please enter a valid number';
+        } else if (field.minValue !== undefined && num < field.minValue) {
+          newErrors[field.name] = `Value must be at least ${field.minValue}`;
+        } else if (field.maxValue !== undefined && num > field.maxValue) {
+          newErrors[field.name] = `Value cannot exceed ${field.maxValue}`;
         }
-      });
+      }
     });
 
+    return newErrors;
+  };
+
+  const validateForm = (): boolean => {
+    const fields = formConfig.sections.flatMap((section) => section.fields);
+    const newErrors = validateFields(fields);
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  const validateCurrentSection = (): boolean => {
+    const sectionFields = formConfig.sections[currentSectionIndex].fields;
+    const newErrors = validateFields(sectionFields);
+    setErrors((prev) => ({ ...prev, ...newErrors }));
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // FIXED: Uses wasteApiService instead of raw fetch
   const handleSubmit = async (submitAsDraft: boolean = false) => {
     if (!submitAsDraft && !validateForm()) {
-      showError('Please fix the errors in the form');
+      showError('Please fix the errors before submitting');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(buildApiUrl(`/surveys/${surveyId}/submit`), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          responseData: formData,
-          latitude: location?.latitude,
-          longitude: location?.longitude,
-          isDraft: submitAsDraft,
-        }),
-      });
+      await wasteApiService.submitSurveyResponse(
+        surveyId,
+        formData,
+        location?.latitude,
+        location?.longitude,
+        submitAsDraft,
+        currentProjectId,
+        user?.email,
+        user?.name
+      );
 
-      if (!response.ok) throw new Error('Failed to submit survey');
-
-      showSuccess(submitAsDraft ? 'Survey saved as draft' : 'Survey submitted successfully');
-      setFormData({});
+      showSuccess(submitAsDraft ? 'Draft saved successfully' : 'Survey submitted successfully');
+      
+      if (!submitAsDraft) {
+        setFormData({});
+        setCurrentSectionIndex(0);
+        setLocation(null);
+      }
+      
       onSubmit?.(formData);
     } catch (error: any) {
       showError(error.message || 'Failed to submit survey');
@@ -153,7 +286,6 @@ export const DynamicSurveyForm: React.FC<DynamicSurveyFormProps> = ({
       ...prev,
       [fieldName]: value,
     }));
-    // Clear error when user starts typing
     if (errors[fieldName]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
@@ -163,127 +295,163 @@ export const DynamicSurveyForm: React.FC<DynamicSurveyFormProps> = ({
     }
   };
 
-  const handleFileUpload = async (fieldName: string, file: File) => {
+  const handleNext = () => {
+    if (!validateCurrentSection()) {
+      showError('Please complete required fields before continuing');
+      return;
+    }
+    if (currentSectionIndex < formConfig.sections.length - 1) {
+      setCurrentSectionIndex(currentSectionIndex + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handlePrevious = () => {
+    if (currentSectionIndex > 0) {
+      setCurrentSectionIndex(currentSectionIndex - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // FIXED: Uses wasteApiService for images, and correct field names for general files
+  const handleFileUpload = async (fieldName: string, file: File, type: 'image' | 'file') => {
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('file', file);
+      if (type === 'image') {
+        const imageUrl = await wasteApiService.uploadImage(file);
+        handleFieldChange(fieldName, imageUrl);
+        showSuccess('Image uploaded successfully');
+      } else {
+        // Fallback for document uploads using raw fetch (if backend doesn't have explicit uploadFile method)
+        const formDataToSend = new FormData();
+        formDataToSend.append('file', file);
+        
+        const response = await fetch(buildApiUrl('/upload/file'), {
+          method: 'POST',
+          body: formDataToSend,
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+        });
 
-      const response = await fetch(buildApiUrl('/upload-image'), {
-        method: 'POST',
-        body: formDataToSend,
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'File upload failed');
+        }
 
-      if (!response.ok) throw new Error('Upload failed');
-
-      const result = await response.json();
-      handleFieldChange(fieldName, result.data.url);
-      showSuccess('Image uploaded');
+        const result = await response.json();
+        // Handle variations in how your backend returns document URLs
+        handleFieldChange(fieldName, result.data.url || result.data.file_url);
+        showSuccess('File uploaded successfully');
+      }
     } catch (error: any) {
-      showError(error.message || 'Image upload failed');
+      showError(error.message || `Failed to upload ${type}`);
     }
   };
 
   const renderField = (field: FormField) => {
     const value = formData[field.name] ?? '';
     const error = errors[field.name];
+    const hasError = !!error;
 
-    const fieldProps = {
-      className: `form-field-input ${error ? 'error' : ''}`,
+    const baseProps = {
+      className: `survey-input ${hasError ? 'has-error' : ''}`,
       disabled: readOnly,
       value,
       onChange: (e: any) => handleFieldChange(field.name, e.target.value),
     };
 
     switch (field.type) {
+      case 'info_block':
+        return (
+          <div className="survey-info-block">
+            <Info size={20} className="survey-info-icon" />
+            <div className="survey-info-content">
+              {field.content || field.placeholder || 'Please read instructions carefully.'}
+            </div>
+          </div>
+        );
+
+      case 'slider':
+        return (
+          <div className="survey-slider-group">
+            <input
+              type="range"
+              min={field.minValue || 0}
+              max={field.maxValue || 100}
+              value={value || field.minValue || 0}
+              disabled={readOnly}
+              onChange={(e) => handleFieldChange(field.name, Number(e.target.value))}
+              className="survey-range-input"
+            />
+            <span className="survey-slider-val">{value || field.minValue || 0}</span>
+          </div>
+        );
+
       case 'text':
-        return (
-          <input
-            type="text"
-            placeholder={field.placeholder}
-            {...fieldProps}
-          />
-        );
-
       case 'email':
-        return (
-          <input
-            type="email"
-            placeholder={field.placeholder}
-            {...fieldProps}
-          />
-        );
-
+      case 'tel':
+      case 'url':
       case 'number':
+      case 'date':
+      case 'time': {
+        const autoCompleteVal = getAutoCompleteAttribute(field.label, field.type);
+        const actualInputType = (field.type === 'number' && autoCompleteVal === 'tel') ? 'tel' : field.type;
+
         return (
           <input
-            type="number"
-            placeholder={field.placeholder}
+            type={actualInputType}
+            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}...`}
             min={field.minValue}
             max={field.maxValue}
-            {...fieldProps}
+            autoComplete={autoCompleteVal}
+            {...baseProps}
           />
         );
+      }
 
       case 'textarea':
         return (
           <textarea
-            placeholder={field.placeholder}
+            placeholder={field.placeholder || 'Type your response here...'}
             rows={4}
-            {...fieldProps}
-          />
-        );
-
-      case 'date':
-        return (
-          <input
-            type="date"
-            {...fieldProps}
-          />
-        );
-
-      case 'time':
-        return (
-          <input
-            type="time"
-            {...fieldProps}
+            {...baseProps}
           />
         );
 
       case 'select':
         return (
-          <select {...fieldProps}>
-            <option value="">{field.placeholder || 'Select an option'}</option>
-            {field.options?.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
+          <div className="survey-select-wrapper">
+            <select {...baseProps}>
+              <option value="" disabled hidden>
+                {field.placeholder || 'Choose an option...'}
               </option>
-            ))}
-          </select>
+              {field.options?.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
         );
 
       case 'multiselect':
         return (
-          <div className="form-multiselect">
+          <div className="survey-checkbox-group">
             {field.options?.map((opt) => (
-              <label key={opt} className="form-checkbox-label">
+              <label key={opt} className="survey-checkbox-label">
                 <input
                   type="checkbox"
                   checked={Array.isArray(value) && value.includes(opt)}
                   onChange={(e) => {
                     const arr = Array.isArray(value) ? [...value] : [];
-                    if (e.target.checked) {
-                      arr.push(opt);
-                    } else {
-                      arr.splice(arr.indexOf(opt), 1);
-                    }
+                    if (e.target.checked) arr.push(opt);
+                    else arr.splice(arr.indexOf(opt), 1);
                     handleFieldChange(field.name, arr);
                   }}
                   disabled={readOnly}
                 />
-                <span>{opt}</span>
+                <span className="survey-checkbox-custom"></span>
+                <span className="survey-checkbox-text">{opt}</span>
               </label>
             ))}
           </div>
@@ -291,78 +459,100 @@ export const DynamicSurveyForm: React.FC<DynamicSurveyFormProps> = ({
 
       case 'checkbox':
         return (
-          <label className="form-checkbox-label">
+          <label className="survey-checkbox-label">
             <input
               type="checkbox"
               checked={Boolean(value)}
               onChange={(e) => handleFieldChange(field.name, e.target.checked)}
               disabled={readOnly}
             />
-            <span>{field.placeholder || field.label}</span>
+            <span className="survey-checkbox-custom"></span>
+            <span className="survey-checkbox-text">{field.placeholder || field.label}</span>
           </label>
         );
 
       case 'rating':
         return (
-          <div className="form-rating">
+          <div className="survey-rating-group">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
                 key={star}
-                className={`form-rating-star ${value >= star ? 'active' : ''}`}
+                type="button"
+                className={`survey-rating-star ${value >= star ? 'is-active' : ''}`}
                 onClick={() => handleFieldChange(field.name, star)}
                 disabled={readOnly}
-                type="button"
               >
-                ⭐
+                ★
               </button>
             ))}
           </div>
         );
 
-      case 'image':
+      case 'signature':
         return (
-          <div className="form-image-upload">
-            {value && (
-              <div className="form-image-preview">
-                <img src={value} alt="Preview" />
+          <SignaturePad 
+            value={value} 
+            onChange={(v) => handleFieldChange(field.name, v)} 
+            readOnly={readOnly} 
+          />
+        );
+
+      case 'file':
+      case 'image':
+        const isImage = field.type === 'image';
+        return (
+          <div className="survey-image-upload">
+            {value ? (
+              <div className="survey-file-preview">
+                {isImage ? (
+                  <img src={value} alt="Uploaded preview" />
+                ) : (
+                  <div className="survey-doc-preview">
+                    <FileText size={32} color="#329D9C" />
+                    <span>Document Uploaded</span>
+                  </div>
+                )}
+                {!readOnly && (
+                  <button type="button" onClick={() => handleFieldChange(field.name, '')} className="survey-image-clear">
+                    Change {isImage ? 'Image' : 'File'}
+                  </button>
+                )}
               </div>
-            )}
-            {!readOnly && (
-              <label className="form-image-label">
-                <Upload size={16} /> Upload Image
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFileUpload(field.name, file);
-                  }}
-                  style={{ display: 'none' }}
-                  ref={(el) => {
-                    if (el) fileInputRefs.current[field.name] = el;
-                  }}
-                  disabled={readOnly}
-                />
-              </label>
+            ) : (
+              !readOnly && (
+                <label className="survey-image-dropzone">
+                  {isImage ? <ImageIcon size={24} className="survey-image-icon" /> : <FileText size={24} className="survey-image-icon" />}
+                  <span className="survey-image-text">Click to upload {isImage ? 'an image' : 'a file'}</span>
+                  <input
+                    type="file"
+                    accept={isImage ? "image/*" : ".pdf,.doc,.docx,.xls,.xlsx"}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileUpload(field.name, file, field.type as 'image' | 'file');
+                    }}
+                    ref={(el) => {
+                      if (el) fileInputRefs.current[field.name] = el;
+                    }}
+                  />
+                </label>
+              )
             )}
           </div>
         );
 
       case 'location':
         return (
-          <div className="form-location">
+          <div className="survey-location-group">
             {location ? (
-              <div className="form-location-display">
-                <MapPin size={16} />
-                <span>
-                  Lat: {location.latitude.toFixed(6)}, Lon: {location.longitude.toFixed(6)}
-                </span>
+              <div className="survey-location-success">
+                <MapPin size={18} />
+                <div className="survey-location-coords">
+                  <strong>Location Captured</strong>
+                  <span>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span>
+                </div>
                 {!readOnly && (
-                  <button
-                    type="button"
-                    className="form-location-btn"
-                    onClick={captureLocation}
-                  >
+                  // FIXED: Now passes field.name
+                  <button type="button" onClick={() => captureLocation(field.name)} className="survey-location-retry">
                     Update
                   </button>
                 )}
@@ -371,18 +561,15 @@ export const DynamicSurveyForm: React.FC<DynamicSurveyFormProps> = ({
               !readOnly && (
                 <button
                   type="button"
-                  className="form-location-btn form-location-btn--primary"
-                  onClick={captureLocation}
+                  className="survey-location-btn"
+                  // FIXED: Now passes field.name
+                  onClick={() => captureLocation(field.name)}
                   disabled={locatingPosition}
                 >
                   {locatingPosition ? (
-                    <>
-                      <Loader size={14} className="spin" /> Getting location...
-                    </>
+                    <><Loader size={18} className="survey-spin" /> Locating...</>
                   ) : (
-                    <>
-                      <MapPin size={16} /> Capture Location
-                    </>
+                    <><MapPin size={18} /> Get Current Location</>
                   )}
                 </button>
               )
@@ -395,30 +582,62 @@ export const DynamicSurveyForm: React.FC<DynamicSurveyFormProps> = ({
     }
   };
 
+  const currentSection = formConfig.sections[currentSectionIndex];
+  const isFirstSection = currentSectionIndex === 0;
+  const isLastSection = currentSectionIndex === formConfig.sections.length - 1;
+  const progressPercentage = ((currentSectionIndex + 1) / formConfig.sections.length) * 100;
+
   return (
     <>
       <style>{css}</style>
-      <form className="dynamic-form">
-        {formConfig.sections.map((section, sectionIndex) => (
-          <div key={section.id} className="form-section">
-            <div className="form-section-header">
-              <h2>{section.title}</h2>
-              {section.description && <p>{section.description}</p>}
-            </div>
+      <div className="survey-container">
+        
+        {/* Progress Tracker */}
+        <div className="survey-progress">
+          <div className="survey-progress-header">
+            <span className="survey-progress-text">
+              Step {currentSectionIndex + 1} of {formConfig.sections.length}
+            </span>
+            <span className="survey-progress-percentage">{Math.round(progressPercentage)}%</span>
+          </div>
+          <div className="survey-progress-track">
+            <div 
+              className="survey-progress-fill" 
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
+        </div>
 
-            <div className="form-fields">
-              {section.fields.map((field) => (
-                <div key={field.id} className="form-field">
-                  <label className="form-label">
-                    {field.label}
-                    {field.required && <span className="form-required">*</span>}
-                  </label>
-                  {field.hint && <p className="form-hint">{field.hint}</p>}
+        <form className="survey-form" onSubmit={(e) => e.preventDefault()}>
+          <div className="survey-section" key={currentSection.id}>
+            
+            <header className="survey-section-header">
+              <h2 className="survey-section-title">{currentSection.title}</h2>
+              {currentSection.description && (
+                <p className="survey-section-desc">{currentSection.description}</p>
+              )}
+            </header>
 
-                  {renderField(field)}
+            <div className="survey-fields-list">
+              {currentSection.fields.map((field) => (
+                <div key={field.id} className="survey-field-wrapper">
+                  
+                  {field.type !== 'info_block' && (
+                    <div className="survey-label-group">
+                      <label className="survey-label">
+                        {field.label}
+                        {field.required && <span className="survey-required">*</span>}
+                      </label>
+                      {field.hint && <span className="survey-hint">{field.hint}</span>}
+                    </div>
+                  )}
+
+                  <div className="survey-input-container">
+                    {renderField(field)}
+                  </div>
 
                   {errors[field.name] && (
-                    <div className="form-error">
+                    <div className="survey-error-msg">
                       <AlertCircle size={14} />
                       {errors[field.name]}
                     </div>
@@ -427,384 +646,700 @@ export const DynamicSurveyForm: React.FC<DynamicSurveyFormProps> = ({
               ))}
             </div>
           </div>
-        ))}
 
-        {/* Form Actions */}
-        <div className="form-actions">
-          <div className="form-actions-left">
-            {formConfig.metadata?.allowDrafts && !readOnly && (
-              <button
-                type="button"
-                className="form-btn form-btn--secondary"
-                onClick={() => handleSubmit(true)}
-                disabled={isSubmitting}
-              >
-                Save as Draft
-              </button>
-            )}
-          </div>
+          {/* Navigation Controls */}
+          <div className="survey-actions">
+            <div className="survey-actions-left">
+              {!isFirstSection && (
+                <button type="button" className="survey-btn survey-btn-outline" onClick={handlePrevious}>
+                  <ArrowLeft size={16} /> Previous
+                </button>
+              )}
+              {formConfig.metadata?.allowDrafts && !readOnly && (
+                <button 
+                  type="button" 
+                  className="survey-btn survey-btn-text" 
+                  onClick={() => handleSubmit(true)}
+                  disabled={isSubmitting}
+                >
+                  <Save size={16} /> Save Draft
+                </button>
+              )}
+            </div>
 
-          <div className="form-actions-right">
-            {!readOnly && (
-              <button
-                type="button"
-                className="form-btn form-btn--primary"
-                onClick={() => handleSubmit(false)}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader size={16} className="spin" /> Submitting...
-                  </>
-                ) : (
-                  <>
-                    <Check size={16} /> Submit Survey
-                  </>
-                )}
-              </button>
-            )}
+            <div className="survey-actions-right">
+              {!isLastSection ? (
+                <button type="button" className="survey-btn survey-btn-primary" onClick={handleNext}>
+                  Continue <ArrowRight size={16} />
+                </button>
+              ) : (
+                !readOnly && (
+                  <button 
+                    type="button" 
+                    className="survey-btn survey-btn-success" 
+                    onClick={() => handleSubmit(false)}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <><Loader size={16} className="survey-spin" /> Submitting...</>
+                    ) : (
+                      <><Check size={16} /> Submit Survey</>
+                    )}
+                  </button>
+                )
+              )}
+            </div>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
     </>
   );
 };
 
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
 
-  @keyframes spin {
+  @keyframes surveyFadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes surveySpin {
     to { transform: rotate(360deg); }
   }
 
-  .dynamic-form {
-    display: flex;
-    flex-direction: column;
-    gap: 32px;
-    padding: 24px;
-    background: white;
-    border-radius: 12px;
+  .survey-container {
+    max-width: 760px;
+    margin: 0 auto;
     font-family: 'DM Sans', sans-serif;
+    color: #1c3a2e;
+    padding: 32px 20px 80px;
   }
 
-  .form-section {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-
-  .form-section-header h2 {
-    font-size: 20px;
-    font-weight: 600;
-    color: #205072;
-    margin: 0;
-  }
-
-  .form-section-header p {
-    font-size: 14px;
+  .survey-empty-state {
+    text-align: center;
+    padding: 60px 20px;
     color: #7a9a8a;
-    margin: 4px 0 0 0;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
   }
 
-  .form-fields {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+  /* Progress Bar */
+  .survey-progress {
+    margin-bottom: 48px;
   }
 
-  .form-field {
+  .survey-progress-header {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .form-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: #205072;
-    display: flex;
+    justify-content: space-between;
     align-items: center;
+    margin-bottom: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #7a9a8a;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .survey-progress-percentage {
+    color: #329D9C;
+  }
+
+  .survey-progress-track {
+    width: 100%;
+    height: 4px;
+    background: #e2ede8;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .survey-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #329D9C 0%, #56C596 100%);
+    border-radius: 4px;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Section Header */
+  .survey-section {
+    animation: surveyFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .survey-section-header {
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #e2ede8;
+  }
+
+  .survey-section-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: #205072;
+    margin: 0 0 12px 0;
+    line-height: 1.2;
+    letter-spacing: -0.5px;
+  }
+
+  .survey-section-desc {
+    font-size: 16px;
+    color: #7a9a8a;
+    margin: 0;
+    line-height: 1.6;
+  }
+
+  /* Fields Layout */
+  .survey-fields-list {
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  .survey-field-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .survey-label-group {
+    display: flex;
+    flex-direction: column;
     gap: 4px;
   }
 
-  .form-required {
+  .survey-label {
+    font-size: 16px;
+    font-weight: 600;
+    color: #205072;
+    line-height: 1.4;
+  }
+
+  .survey-required {
     color: #dc2626;
+    margin-left: 4px;
     font-weight: 700;
   }
 
-  .form-hint {
-    font-size: 12px;
+  .survey-hint {
+    font-size: 14px;
     color: #7a9a8a;
-    margin: 0;
+    line-height: 1.5;
   }
 
-  .form-field-input,
-  .dynamic-form select,
-  .dynamic-form textarea {
-    padding: 12px 14px;
-    border: 1.5px solid #e2ede8;
-    border-radius: 8px;
-    font-size: 14px;
+  /* Inputs Typography & Style */
+  .survey-input {
+    width: 100%;
+    padding: 16px 0;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid #e2ede8;
+    border-radius: 0;
     font-family: 'DM Sans', sans-serif;
+    font-size: 18px;
     color: #1c3a2e;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .survey-input::placeholder {
+    color: #a0baba;
+    font-weight: 400;
+  }
+
+  .survey-input:focus {
+    outline: none;
+    border-bottom-color: #329D9C;
+    box-shadow: 0 1px 0 #329D9C;
+  }
+
+  .survey-input.has-error {
+    border-bottom-color: #dc2626;
+  }
+
+  .survey-input:disabled {
+    opacity: 0.6;
+    background: transparent;
+    cursor: not-allowed;
+  }
+
+  textarea.survey-input {
+    border: 2px solid #e2ede8;
+    border-radius: 12px;
+    padding: 16px;
+    resize: vertical;
+    min-height: 120px;
+  }
+  
+  textarea.survey-input:focus {
+    border-color: #329D9C;
+    box-shadow: 0 0 0 3px rgba(50, 157, 156, 0.1);
+  }
+
+  /* Select */
+  .survey-select-wrapper {
+    position: relative;
+  }
+
+  .survey-select-wrapper::after {
+    content: "▼";
+    font-size: 12px;
+    color: #329D9C;
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .survey-select-wrapper select {
+    appearance: none;
+    cursor: pointer;
+    border: 2px solid #e2ede8;
+    border-radius: 12px;
+    padding: 16px;
+    padding-right: 48px;
+  }
+  
+  .survey-select-wrapper select:focus {
+    border-color: #329D9C;
+    box-shadow: 0 0 0 3px rgba(50, 157, 156, 0.1);
+  }
+
+  /* Checkboxes & Multiselect */
+  .survey-checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 8px;
+  }
+
+  .survey-checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    group: hover;
+  }
+
+  .survey-checkbox-label input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+  }
+
+  .survey-checkbox-custom {
+    flex-shrink: 0;
+    height: 24px;
+    width: 24px;
+    background-color: transparent;
+    border: 2px solid #a0baba;
+    border-radius: 6px;
+    position: relative;
+    transition: all 0.2s;
+    margin-top: 2px;
+  }
+
+  .survey-checkbox-label:hover input ~ .survey-checkbox-custom {
+    border-color: #329D9C;
+  }
+
+  .survey-checkbox-label input:checked ~ .survey-checkbox-custom {
+    background-color: #329D9C;
+    border-color: #329D9C;
+  }
+
+  .survey-checkbox-custom:after {
+    content: "";
+    position: absolute;
+    display: none;
+    left: 7px;
+    top: 3px;
+    width: 6px;
+    height: 12px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  .survey-checkbox-label input:checked ~ .survey-checkbox-custom:after {
+    display: block;
+  }
+
+  .survey-checkbox-text {
+    font-size: 16px;
+    color: #205072;
+    line-height: 1.6;
+    font-weight: 400;
+  }
+
+  /* Ratings */
+  .survey-rating-group {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+  }
+
+  .survey-rating-star {
+    background: none;
+    border: none;
+    font-size: 40px;
+    line-height: 1;
+    color: #e2ede8;
+    cursor: pointer;
+    transition: color 0.2s, transform 0.2s;
+    padding: 0;
+  }
+
+  .survey-rating-star:hover:not(:disabled) {
+    transform: scale(1.1);
+  }
+
+  .survey-rating-star.is-active {
+    color: #FFB020;
+  }
+
+  /* Info Block */
+  .survey-info-block {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    background: #e0f2fe;
+    border-left: 4px solid #0284c7;
+    padding: 20px;
+    border-radius: 0 12px 12px 0;
+  }
+  .survey-info-icon {
+    color: #0284c7;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .survey-info-content {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #0369a1;
+    font-weight: 500;
+  }
+
+  /* Slider */
+  .survey-slider-group {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 12px 0;
+  }
+  .survey-range-input {
+    flex: 1;
+    accent-color: #329D9C;
+    height: 6px;
+    border-radius: 4px;
+    background: #e2ede8;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  .survey-range-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #329D9C;
+    cursor: pointer;
+    border: 3px solid white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  }
+  .survey-slider-val {
+    font-size: 18px;
+    font-weight: 700;
+    color: #205072;
+    min-width: 48px;
+    text-align: right;
+  }
+
+  /* Signature Pad */
+  .survey-signature-pad {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .survey-signature-pad canvas {
+    background: #f6fbf8;
+    border: 2px dashed #a0baba;
+    border-radius: 12px;
+    cursor: crosshair;
+    width: 100%;
+    height: 150px;
+  }
+  .survey-signature-hint {
+    font-size: 13px;
+    color: #7a9a8a;
+    text-align: center;
+  }
+  .survey-signature-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .survey-signature-preview img {
+    max-height: 120px;
+    border: 1px solid #e2ede8;
+    border-radius: 8px;
     background: white;
+  }
+
+  /* File Upload / Image */
+  .survey-image-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 40px 20px;
+    border: 2px dashed #a0baba;
+    border-radius: 12px;
+    background: #fcfdfd;
+    cursor: pointer;
     transition: all 0.2s;
   }
 
-  .form-field-input:focus,
-  .dynamic-form select:focus,
-  .dynamic-form textarea:focus {
-    outline: none;
+  .survey-image-dropzone:hover {
     border-color: #329D9C;
     background: #f6fbf8;
   }
 
-  .form-field-input.error {
-    border-color: #dc2626;
-    background: #fee2e2;
+  .survey-image-dropzone input {
+    display: none;
   }
 
-  .form-field-input:disabled,
-  .dynamic-form select:disabled,
-  .dynamic-form textarea:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    background: #f6fbf8;
-  }
-
-  .form-error {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: #dc2626;
-    padding: 8px;
-    background: #fee2e2;
-    border-radius: 6px;
-  }
-
-  .form-multiselect {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .form-checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    color: #1c3a2e;
-    cursor: pointer;
-  }
-
-  .form-checkbox-label input {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    accent-color: #329D9C;
-  }
-
-  .form-checkbox-label input:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-
-  .form-rating {
-    display: flex;
-    gap: 8px;
-  }
-
-  .form-rating-star {
-    background: none;
-    border: none;
-    font-size: 32px;
-    cursor: pointer;
-    opacity: 0.3;
-    transition: opacity 0.2s;
-  }
-
-  .form-rating-star:hover,
-  .form-rating-star.active {
-    opacity: 1;
-  }
-
-  .form-rating-star:disabled {
-    cursor: not-allowed;
-  }
-
-  .form-image-upload {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .form-image-preview {
-    display: flex;
-    justify-content: center;
-    max-width: 300px;
-  }
-
-  .form-image-preview img {
-    max-width: 100%;
-    max-height: 200px;
-    border-radius: 8px;
-    border: 1.5px solid #e2ede8;
-  }
-
-  .form-image-label {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px 16px;
-    background: #f6fbf8;
-    border: 2px dashed #329D9C;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
+  .survey-image-icon {
     color: #329D9C;
-    transition: all 0.2s;
   }
 
-  .form-image-label:hover {
-    background: #e8f5f2;
+  .survey-image-text {
+    font-size: 15px;
+    font-weight: 500;
+    color: #7a9a8a;
   }
 
-  .form-location {
+  .survey-file-preview {
     display: flex;
-    gap: 10px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
   }
 
-  .form-location-display {
+  .survey-file-preview img {
+    max-width: 100%;
+    max-height: 320px;
+    border-radius: 12px;
+    object-fit: contain;
+  }
+
+  .survey-doc-preview {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 14px;
+    gap: 12px;
+    padding: 16px 24px;
     background: #e8f5f2;
     border: 1.5px solid #329D9C;
-    border-radius: 8px;
-    font-size: 13px;
+    border-radius: 12px;
     color: #205072;
-    font-weight: 500;
+    font-weight: 600;
+  }
+
+  .survey-image-clear {
+    background: transparent;
+    border: none;
+    color: #dc2626;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+  }
+
+  /* Location */
+  .survey-location-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 24px;
+    background: #f6fbf8;
+    border: 2px solid #329D9C;
+    border-radius: 12px;
+    color: #329D9C;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+
+  .survey-location-btn:hover:not(:disabled) {
+    background: #329D9C;
+    color: white;
+  }
+
+  .survey-location-success {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: #e8f5f2;
+    border-radius: 12px;
+    color: #1c3a2e;
+  }
+
+  .survey-location-success svg {
+    color: #329D9C;
+  }
+
+  .survey-location-coords {
+    display: flex;
+    flex-direction: column;
     flex: 1;
   }
 
-  .form-location-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 12px 16px;
-    background: white;
-    border: 1.5px solid #329D9C;
-    border-radius: 8px;
-    color: #329D9C;
+  .survey-location-coords strong {
+    font-size: 14px;
+    color: #205072;
+  }
+
+  .survey-location-coords span {
     font-size: 13px;
+    color: #7a9a8a;
+    font-family: monospace;
+    margin-top: 2px;
+  }
+
+  .survey-location-retry {
+    background: none;
+    border: none;
+    color: #329D9C;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
   }
 
-  .form-location-btn:hover {
-    background: #f6fbf8;
+  /* Error Message */
+  .survey-error-msg {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #dc2626;
+    font-size: 14px;
+    font-weight: 500;
+    margin-top: 4px;
   }
 
-  .form-location-btn--primary {
-    background: linear-gradient(135deg, #329D9C 0%, #56C596 100%);
-    border: none;
-    color: white;
-  }
-
-  .form-location-btn--primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(50, 157, 156, 0.3);
-  }
-
-  .form-location-btn .spin {
-    animation: spin 1s linear infinite;
-  }
-
-  .form-actions {
+  /* Action Buttons */
+  .survey-actions {
     display: flex;
     justify-content: space-between;
-    gap: 12px;
-    padding-top: 20px;
-    border-top: 1.5px solid #e2ede8;
+    align-items: center;
+    margin-top: 64px;
+    padding-top: 32px;
+    border-top: 1px solid #e2ede8;
   }
 
-  .form-actions-left {
+  .survey-actions-left,
+  .survey-actions-right {
     display: flex;
-    gap: 8px;
+    align-items: center;
+    gap: 16px;
   }
 
-  .form-actions-right {
-    display: flex;
-    gap: 8px;
-  }
-
-  .form-btn {
+  .survey-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 12px 20px;
-    border-radius: 8px;
-    border: none;
-    font-size: 14px;
+    gap: 8px;
+    padding: 14px 28px;
+    border-radius: 12px;
+    font-size: 16px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
     font-family: 'DM Sans', sans-serif;
   }
 
-  .form-btn--primary {
+  .survey-btn-primary {
+    background: #205072;
+    color: white;
+    border: none;
+  }
+
+  .survey-btn-primary:hover {
+    background: #153b56;
+    transform: translateY(-2px);
+  }
+
+  .survey-btn-success {
     background: linear-gradient(135deg, #329D9C 0%, #56C596 100%);
     color: white;
+    border: none;
   }
 
-  .form-btn--primary:hover {
+  .survey-btn-success:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(50, 157, 156, 0.3);
+    box-shadow: 0 8px 20px rgba(50, 157, 156, 0.25);
   }
 
-  .form-btn--primary:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    transform: none;
+  .survey-btn-outline {
+    background: transparent;
+    color: #205072;
+    border: 2px solid #e2ede8;
   }
 
-  .form-btn--secondary {
-    background: white;
-    color: #329D9C;
-    border: 1.5px solid #e2ede8;
+  .survey-btn-outline:hover {
+    border-color: #205072;
   }
 
-  .form-btn--secondary:hover {
+  .survey-btn-text {
+    background: transparent;
+    color: #7a9a8a;
+    border: none;
+    padding: 14px 16px;
+  }
+
+  .survey-btn-text:hover {
+    color: #205072;
     background: #f6fbf8;
-    border-color: #329D9C;
   }
 
-  .form-btn .spin {
-    animation: spin 1s linear infinite;
+  .survey-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
   }
 
-  @media (max-width: 768px) {
-    .dynamic-form {
-      gap: 24px;
-      padding: 16px;
+  .survey-spin {
+    animation: surveySpin 1s linear infinite;
+  }
+
+  /* Responsive styling */
+  @media (max-width: 640px) {
+    .survey-container {
+      padding: 24px 16px 64px;
     }
 
-    .form-section-header h2 {
-      font-size: 18px;
+    .survey-section-title {
+      font-size: 26px;
+    }
+    
+    .survey-actions {
+      flex-direction: column-reverse;
+      gap: 20px;
     }
 
-    .form-actions {
+    .survey-actions-left, 
+    .survey-actions-right {
+      width: 100%;
       flex-direction: column;
     }
 
-    .form-btn {
+    .survey-btn {
       width: 100%;
     }
   }

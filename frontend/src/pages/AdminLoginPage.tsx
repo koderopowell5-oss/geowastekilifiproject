@@ -57,7 +57,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onBackToLogin })
             <ShieldCheck size={30} className="text-white" />
           </div>
           <h1 className="text-2xl font-bold text-[#205072]">Admin Portal</h1>
-          <p className="text-[13px] text-[#56C596] mt-1 font-medium">GeoWaste Kilifi</p>
+          <p className="text-[13px] text-[#56C596] mt-1 font-medium">GeoKollect</p>
         </div>
 
         {/* Card */}
@@ -83,7 +83,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onBackToLogin })
             {/* Username */}
             <div>
               <label className="block text-[11px] font-bold text-[#205072] mb-2 uppercase tracking-wider">
-                Username
+                Admin username
               </label>
               <div className="relative">
                 <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#329D9C]">
@@ -94,10 +94,13 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onBackToLogin })
                   value={username}
                   onChange={(e) => { setUsername(e.target.value); setError(null); }}
                   disabled={isLoading}
-                  placeholder="admin"
+                  placeholder="kodero_admin"
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#CFF4D2] bg-[#f0faf5] text-[#205072] text-[13px] font-medium placeholder-gray-300 focus:outline-none focus:border-[#329D9C] focus:ring-2 focus:ring-[#329D9C]/15 transition-all disabled:opacity-50"
                 />
               </div>
+              <p className="text-[11px] text-[#329D9C] mt-2">
+                Use your admin username, not the enumerator email address.
+              </p>
             </div>
 
             {/* Password */}

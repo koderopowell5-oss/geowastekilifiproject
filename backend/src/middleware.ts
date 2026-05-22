@@ -15,9 +15,12 @@ export interface AuthRequest extends Request {
     role: string;
     account_type?: 'admin' | 'enumerator';
     permissions?: Record<string, boolean>;
+    primary_project_id?: string;
   };
 }
-
+export function isAdminUser(user?: { role?: string; account_type?: string } | null): boolean {
+  return !!user && (user.role === 'admin' || user.account_type === 'admin');
+}
 /**
  * Verify JWT token and attach user to request
  */
@@ -45,7 +48,7 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     }
 
     // Check if this is admin
-    const ADMIN_USERNAME = 'kodero_admin';
+    const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'kodero_admin';
     if (identifier === ADMIN_USERNAME) {
       req.user = {
         id: 0,
@@ -54,13 +57,14 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
         role: 'admin',
         account_type: 'admin',
         permissions: {},
+        primary_project_id: null,
       };
       return next();
     }
 
     // Fetch user with permissions from database
     const result = await pool.query(
-      'SELECT id, email, name, role, account_type, permissions FROM enumerators WHERE email = $1',
+      'SELECT id, email, name, role, account_type, permissions, primary_project_id FROM enumerators WHERE email = $1',
       [identifier]
     );
 
@@ -72,13 +76,16 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     }
 
     const user = result.rows[0];
+    const accountType = user.account_type || (user.role === 'admin' ? 'admin' : 'enumerator');
+
     req.user = {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
-      account_type: user.account_type,
+      role: user.role || accountType,
+      account_type: accountType,
       permissions: user.permissions || {},
+      primary_project_id: user.primary_project_id || null,
     };
 
     next();
@@ -126,7 +133,7 @@ export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction
     } as ApiResponse);
   }
 
-  if (req.user.role !== 'admin') {
+  if (!isAdminUser(req.user)) {
     return res.status(403).json({
       success: false,
       message: 'Admin role required',
@@ -147,7 +154,7 @@ export function requireSupervisor(req: AuthRequest, res: Response, next: NextFun
     } as ApiResponse);
   }
 
-  if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+  if (!isAdminUser(req.user) && req.user.role !== 'supervisor') {
     return res.status(403).json({
       success: false,
       message: 'Supervisor or Admin role required',

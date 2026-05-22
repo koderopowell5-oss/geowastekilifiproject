@@ -1,0 +1,197 @@
+{
+  "metadata": {
+    "language": "en",
+    "allowOfflineMode": true,
+    "allowDrafts": true
+  },
+  "sections": [
+    {
+      "id": "sec_1_intro",
+      "title": "Participant Information",
+      "description": "Basic contact details and instructions.",
+      "fields": [
+        {
+          "id": "fld_info_1",
+          "type": "info_block",
+          "label": "Survey Instructions",
+          "name": "field_instructions",
+          "required": false,
+          "content": "Welcome to the data collection survey. Please ensure your GPS is enabled before taking photos. All required fields are marked with an asterisk."
+        },
+        {
+          "id": "fld_text_1",
+          "type": "text",
+          "label": "Full Name",
+          "name": "participant_name",
+          "required": true,
+          "placeholder": "e.g. John Doe",
+          "hint": "Enter your official identification name."
+        },
+        {
+          "id": "fld_email_1",
+          "type": "email",
+          "label": "Email Address",
+          "name": "participant_email",
+          "required": false,
+          "placeholder": "name@example.com",
+          "hint": "We will send a copy of your submission here."
+        },
+        {
+          "id": "fld_tel_1",
+          "type": "tel",
+          "label": "Phone Number",
+          "name": "participant_phone",
+          "required": true,
+          "placeholder": "e.g. 0712 345 678"
+        }
+      ]
+    },
+    {
+      "id": "sec_2_logistics",
+      "title": "Visit Logistics",
+      "description": "Details about the location and timing of the data collection.",
+      "fields": [
+        {
+          "id": "fld_date_1",
+          "type": "date",
+          "label": "Date of Visit",
+          "name": "visit_date",
+          "required": true
+        },
+        {
+          "id": "fld_time_1",
+          "type": "time",
+          "label": "Time of Visit",
+          "name": "visit_time",
+          "required": true
+        },
+        {
+          "id": "fld_loc_1",
+          "type": "location",
+          "label": "Site Location (GPS)",
+          "name": "site_coordinates",
+          "required": true,
+          "hint": "Click to capture current GPS coordinates."
+        },
+        {
+          "id": "fld_num_1",
+          "type": "number",
+          "label": "Number of people on site",
+          "name": "headcount",
+          "required": false,
+          "placeholder": "0",
+          "minValue": 0
+        },
+        {
+          "id": "fld_url_1",
+          "type": "url",
+          "label": "Project Website",
+          "name": "project_url",
+          "required": false,
+          "placeholder": "https://..."
+        }
+      ]
+    },
+    {
+      "id": "sec_3_feedback",
+      "title": "Feedback & Assessment",
+      "description": "Evaluation metrics and detailed observations.",
+      "fields": [
+        {
+          "id": "fld_select_1",
+          "type": "select",
+          "label": "Primary Reason for Visit",
+          "name": "visit_reason",
+          "required": true,
+          "options": [
+            "Routine Inspection",
+            "Maintenance Request",
+            "Initial Setup",
+            "Other"
+          ]
+        },
+        {
+          "id": "fld_multi_1",
+          "type": "multiselect",
+          "label": "Services Evaluated",
+          "name": "services_evaluated",
+          "required": false,
+          "options": [
+            "Water Quality",
+            "Infrastructure Stability",
+            "Sanitation",
+            "Power Supply"
+          ]
+        },
+        {
+          "id": "fld_rating_1",
+          "type": "rating",
+          "label": "Overall Condition Rating",
+          "name": "condition_rating",
+          "required": true,
+          "hint": "Rate from 1 to 5 stars."
+        },
+        {
+          "id": "fld_slider_1",
+          "type": "slider",
+          "label": "Urgency Level",
+          "name": "urgency_slider",
+          "required": true,
+          "minValue": 1,
+          "maxValue": 10,
+          "hint": "1 = Not Urgent, 10 = Highly Urgent"
+        },
+        {
+          "id": "fld_texta_1",
+          "type": "textarea",
+          "label": "General Observations",
+          "name": "observations",
+          "required": false,
+          "placeholder": "Provide any detailed comments here..."
+        }
+      ]
+    },
+    {
+      "id": "sec_4_media",
+      "title": "Media & Verification",
+      "description": "Upload supporting documents and sign off.",
+      "fields": [
+        {
+          "id": "fld_check_1",
+          "type": "checkbox",
+          "label": "Verification Checklist",
+          "name": "verification_checks",
+          "required": true,
+          "options": [
+            "I have visually inspected the site",
+            "I have spoken to the site manager",
+            "I agree to the terms of data submission"
+          ]
+        },
+        {
+          "id": "fld_img_1",
+          "type": "image",
+          "label": "Site Photo",
+          "name": "site_photo",
+          "required": true,
+          "hint": "Take a clear picture of the main facility."
+        },
+        {
+          "id": "fld_file_1",
+          "type": "file",
+          "label": "Supporting Document (PDF)",
+          "name": "supporting_doc",
+          "required": false
+        },
+        {
+          "id": "fld_sig_1",
+          "type": "signature",
+          "label": "Inspector Signature",
+          "name": "inspector_signature",
+          "required": true,
+          "hint": "Sign below to finalize this report."
+        }
+      ]
+    }
+  ]
+}

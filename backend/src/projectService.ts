@@ -7,6 +7,13 @@ import { pool } from './db';
 import { Project, EnumeratorProject, Role, FormSharing, ProjectInvite } from './types';
 import crypto from 'crypto';
 
+const parseJsonField = <T>(value: any): T => {
+  if (typeof value === 'string') {
+    return JSON.parse(value) as T;
+  }
+  return value as T;
+};
+
 export class ProjectService {
   /**
    * Create a new project
@@ -16,16 +23,32 @@ export class ProjectService {
     description: string,
     admin_id: number | string
   ): Promise<Project> {
-    try {
-      const result = await pool.query(
-        `INSERT INTO projects (name, description, admin_id)
-         VALUES ($1, $2, $3)
-         RETURNING id, name, description, admin_id, created_at, updated_at`,
-        [name, description, String(admin_id)]
-      );
-      return result.rows[0];
-    } catch (error) {
-      throw new Error(`Failed to create project: ${error}`);
+    const baseName = name.trim() || 'New Project';
+    let projectName = baseName;
+    let attempts = 0;
+
+    while (true) {
+      try {
+        const result = await pool.query(
+          `INSERT INTO projects (name, description, admin_id)
+           VALUES ($1, $2, $3)
+           RETURNING id, name, description, admin_id, created_at, updated_at`,
+          [projectName, description, String(admin_id)]
+        );
+        return result.rows[0];
+      } catch (error: any) {
+        const isDuplicateNameError = error?.code === '23505' && error?.constraint === 'projects_name_key';
+        if (!isDuplicateNameError) {
+          throw new Error(`Failed to create project: ${error.message || error}`);
+        }
+
+        attempts += 1;
+        if (attempts >= 5) {
+          throw new Error(`Failed to create project: project name '${baseName}' is already in use`);
+        }
+
+        projectName = `${baseName} (${Math.floor(Math.random() * 9000) + 1000})`;
+      }
     }
   }
 
@@ -34,36 +57,98 @@ export class ProjectService {
    */
   static async getEnumeratorProjects(enumerator_id: number | string): Promise<EnumeratorProject[]> {
     try {
+      const defaultAdminPermissions = [
+        'submit_data',
+        'view_submissions',
+        'view_aggregate',
+        'edit_forms',
+        'manage_team',
+        'share_forms',
+        'delete_submissions',
+      ];
+
       const result = await pool.query(
         `SELECT 
           p.id, p.name, p.description, p.admin_id, p.created_at, p.updated_at,
+          a.id as admin_user_id, a.name as admin_name, a.email as admin_email, a.ward as admin_ward, a.phone as admin_phone,
           r.id as role_id, r.name as role_name, r.permissions
          FROM projects p
-         JOIN enumerator_roles er ON p.id = er.project_id
-         JOIN roles r ON er.role_id = r.id
-         WHERE er.enumerator_id = $1
+         LEFT JOIN enumerator_roles er ON p.id = er.project_id AND er.enumerator_id = $1
+         LEFT JOIN roles r ON er.role_id = r.id
+         LEFT JOIN enumerators a ON p.admin_id = a.id
+         WHERE p.admin_id = $1 OR er.enumerator_id = $1
          ORDER BY p.created_at DESC`,
         [String(enumerator_id)]
       );
 
-      return result.rows.map(row => ({
-        project: {
-          id: row.id,
-          name: row.name,
-          description: row.description,
-          admin_id: row.admin_id,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-        },
-        role: {
-          id: row.role_id,
-          name: row.role_name,
-          permissions: row.permissions,
-        },
-        permissions: row.permissions,
-      }));
+      return result.rows.map(row => {
+        const isProjectOwner = String(row.admin_id) === String(enumerator_id);
+        const permissions = row.permissions ?? (isProjectOwner ? defaultAdminPermissions : []);
+
+        return {
+          project: {
+            id: row.id,
+            name: row.name,
+            description: row.description,
+            admin_id: row.admin_id,
+            admin: row.admin_user_id
+              ? {
+                  id: row.admin_user_id,
+                  name: row.admin_name,
+                  email: row.admin_email,
+                  ward: row.admin_ward,
+                  phone: row.admin_phone,
+                }
+              : undefined,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+          },
+          role: {
+            id: row.role_id || 1,
+            name: row.role_name || 'admin',
+            permissions,
+          },
+          permissions,
+        };
+      });
     } catch (error) {
       throw new Error(`Failed to fetch projects: ${error}`);
+    }
+  }
+
+  /**
+   * Get all projects with linked admin info
+   */
+  static async getAllProjectsWithAdmin(): Promise<Project[]> {
+    try {
+      const result = await pool.query(
+        `SELECT 
+          p.id, p.name, p.description, p.admin_id, p.created_at, p.updated_at,
+          a.id as admin_user_id, a.name as admin_name, a.email as admin_email, a.ward as admin_ward, a.phone as admin_phone
+         FROM projects p
+         LEFT JOIN enumerators a ON p.admin_id = a.id
+         ORDER BY p.created_at DESC`
+      );
+
+      return result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        admin_id: row.admin_id,
+        admin: row.admin_user_id
+          ? {
+              id: row.admin_user_id,
+              name: row.admin_name,
+              email: row.admin_email,
+              ward: row.admin_ward,
+              phone: row.admin_phone,
+            }
+          : undefined,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      }));
+    } catch (error) {
+      throw new Error(`Failed to fetch all projects: ${error}`);
     }
   }
 
@@ -73,8 +158,12 @@ export class ProjectService {
   static async getProject(project_id: string): Promise<Project> {
     try {
       const result = await pool.query(
-        `SELECT id, name, description, admin_id, created_at, updated_at
-         FROM projects WHERE id = $1`,
+        `SELECT 
+          p.id, p.name, p.description, p.admin_id, p.created_at, p.updated_at,
+          a.id as admin_user_id, a.name as admin_name, a.email as admin_email, a.ward as admin_ward, a.phone as admin_phone
+         FROM projects p
+         LEFT JOIN enumerators a ON p.admin_id = a.id
+         WHERE p.id = $1`,
         [project_id]
       );
 
@@ -82,7 +171,25 @@ export class ProjectService {
         throw new Error('Project not found');
       }
 
-      return result.rows[0];
+      const row = result.rows[0];
+
+      return {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        admin_id: row.admin_id,
+        admin: row.admin_user_id
+          ? {
+              id: row.admin_user_id,
+              name: row.admin_name,
+              email: row.admin_email,
+              ward: row.admin_ward,
+              phone: row.admin_phone,
+            }
+          : undefined,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
     } catch (error) {
       throw new Error(`Failed to fetch project: ${error}`);
     }
@@ -177,6 +284,34 @@ export class ProjectService {
   }
 
   /**
+   * Publish a form to all enumerators in a project
+   */
+  static async publishFormToProject(
+    form_id: string,
+    project_id: string,
+    shared_by_id: number | string
+  ): Promise<FormSharing[]> {
+    try {
+      const enumerators = await this.getProjectEnumerators(project_id);
+      const sharedForms: FormSharing[] = [];
+
+      for (const enumerator of enumerators) {
+        const shared = await this.shareFormWithEnumerator(
+          form_id,
+          enumerator.id,
+          project_id,
+          shared_by_id
+        );
+        sharedForms.push(shared);
+      }
+
+      return sharedForms;
+    } catch (error) {
+      throw new Error(`Failed to publish form to project: ${error}`);
+    }
+  }
+
+  /**
    * Share a form with an enumerator
    */
   static async shareFormWithEnumerator(
@@ -225,7 +360,10 @@ export class ProjectService {
          ORDER BY fs.shared_at DESC`,
         [String(enumerator_id), project_id]
       );
-      return result.rows;
+      return result.rows.map((row: any) => ({
+        ...row,
+        form_config: parseJsonField(row.form_config),
+      }));
     } catch (error) {
       throw new Error(`Failed to fetch shared forms: ${error}`);
     }

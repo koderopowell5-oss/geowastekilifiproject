@@ -17,6 +17,18 @@ CREATE TABLE IF NOT EXISTS notifications (
   FOREIGN KEY (recipient_email) REFERENCES enumerators(email) ON DELETE CASCADE
 );
 
+-- Ensure notifications table has expected columns when it already existed
+ALTER TABLE notifications
+  ADD COLUMN IF NOT EXISTS notification_type VARCHAR(50) NOT NULL DEFAULT 'general',
+  ADD COLUMN IF NOT EXISTS subject VARCHAR(255) NOT NULL,
+  ADD COLUMN IF NOT EXISTS message TEXT NOT NULL,
+  ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS read_at TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS error_message TEXT,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+
 -- Create index on recipient_email and created_at for efficient queries
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient_email ON notifications(recipient_email);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
@@ -33,6 +45,16 @@ CREATE TABLE IF NOT EXISTS notification_logs (
   status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Ensure notification_logs table has expected columns when it already existed
+ALTER TABLE notification_logs
+  ADD COLUMN IF NOT EXISTS recipient_email VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS recipient_phone VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS notification_type VARCHAR(50) NOT NULL DEFAULT 'general',
+  ADD COLUMN IF NOT EXISTS subject VARCHAR(255) NOT NULL,
+  ADD COLUMN IF NOT EXISTS message TEXT NOT NULL,
+  ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();
 
 -- Create indexes for efficient querying
 CREATE INDEX IF NOT EXISTS idx_notification_logs_recipient_email ON notification_logs(recipient_email);

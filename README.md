@@ -1,4 +1,4 @@
-# 🗺️ GeoWaste Kilifi MVP
+# 🗺️ GeoKollect MVP
 
 > A comprehensive geospatial data collection system for field research and analysis of solid waste disposal suitability in Kilifi Municipality. Features include web & mobile apps, real-time notifications, OTP authentication, custom surveys, and advanced versioning controls.
 
@@ -35,7 +35,7 @@
 
 ## 📱 Mobile App (NEW!)
 
-GeoWaste Kilifi now has a **native Android app** built with Capacitor! 
+GeoKollect now has a **native Android app** built with Capacitor! 
 
 ### Download the Mobile App
 
@@ -77,7 +77,7 @@ Web users can download the Android APK directly from the application:
 
 ## Overview
 
-**GeoWaste Kilifi** is a comprehensive MVP designed for geographic research on sustainable waste management practices in Kilifi Municipality. It integrates modern geospatial technologies with field data collection methodologies to enable evidence-based analysis of waste disposal site suitability.
+**GeoKollect** is a comprehensive MVP designed for geographic research on sustainable waste management practices in Kilifi Municipality. It integrates modern geospatial technologies with field data collection methodologies to enable evidence-based analysis of waste disposal site suitability.
 
 ### ✨ System Capabilities
 
@@ -197,7 +197,7 @@ Web users can download the Android APK directly from the application:
 ## Project Structure
 
 ```
-GeoWaste Kilifi/                       # v1.0.2 - System Architecture
+GeoKollect/                       # v1.0.2 - System Architecture
 ├── backend/                          # Node.js + Express REST API (v1.0.0)
 │   ├── src/
 │   │   ├── index.ts                  # App entry point

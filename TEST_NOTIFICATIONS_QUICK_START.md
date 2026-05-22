@@ -5,7 +5,7 @@
 ### 1. Load Basic Test Data
 ```bash
 # Navigate to project root
-cd e:\desktop\GeoWaste Kilifi
+cd e:\desktop\GeoKollect
 
 # Load seed data into database
 psql -U postgres -d geowaste_db -f database/seed-notifications.sql
@@ -45,7 +45,7 @@ psql -U postgres -d geowaste_db -f database/seed-notifications.sql
 
 ```batch
 # Generate 10 test notifications
-cd E:\desktop\GeoWaste Kilifi
+cd E:\desktop\GeoKollect
 scripts\generate-test-notifications.bat 10
 
 # Or use default (5 notifications)

@@ -1,7 +1,7 @@
 {
   "name": "geowaste-kilifi-frontend",
   "version": "1.0.2",
-  "description": "Frontend for GeoWaste Kilifi geospatial data collection system",
+  "description": "Frontend for GeoKollect geospatial data collection system",
   "private": true,
   "dependencies": {
     "@capacitor/android": "^8.3.1",
@@ -10,11 +10,13 @@
     "@capacitor/status-bar": "^8.0.2",
     "axios": "^1.5.0",
     "leaflet": "^1.9.4",
+    "mapbox-gl": "^3.24.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-leaflet": "^4.2.1",
+    "react-map-gl": "^8.1.1",
     "react-router-dom": "^7.14.2",
-    "react-scripts": "5.0.1",
+    "react-scripts": "^5.0.1",
     "recharts": "^3.8.1",
     "typeface-poppins": "^1.1.13",
     "typescript": "^4.9.5",
@@ -22,6 +24,7 @@
   },
   "devDependencies": {
     "@types/leaflet": "^1.9.7",
+    "@types/mapbox-gl": "^3.4.1",
     "@types/node": "^20.19.39",
     "@types/react": "^18.2.20",
     "@types/react-dom": "^18.2.7",

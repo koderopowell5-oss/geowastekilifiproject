@@ -70,6 +70,13 @@ export interface SurveySubmission {
   updated_at: string;
 }
 
+const parseJsonField = <T>(value: any): T => {
+  if (typeof value === 'string') {
+    return JSON.parse(value) as T;
+  }
+  return value as T;
+};
+
 export class SurveyService {
   /**
    * Create a new survey
@@ -107,7 +114,7 @@ export class SurveyService {
       const survey = result.rows[0];
       return {
         ...survey,
-        form_config: JSON.parse(survey.form_config),
+        form_config: parseJsonField<SurveyFormConfig>(survey.form_config),
       };
     } catch (error: any) {
       console.error('Error creating survey:', error.message);
@@ -133,7 +140,7 @@ export class SurveyService {
       const survey = result.rows[0];
       return {
         ...survey,
-        form_config: JSON.parse(survey.form_config),
+        form_config: parseJsonField<SurveyFormConfig>(survey.form_config),
       };
     } catch (error: any) {
       console.error('Error fetching survey:', error.message);
@@ -164,7 +171,7 @@ export class SurveyService {
 
       return result.rows.map((survey: any) => ({
         ...survey,
-        form_config: JSON.parse(survey.form_config),
+        form_config: parseJsonField<SurveyFormConfig>(survey.form_config),
       }));
     } catch (error: any) {
       console.error('Error fetching surveys:', error.message);
@@ -189,7 +196,7 @@ export class SurveyService {
       const survey = result.rows[0];
       return {
         ...survey,
-        form_config: JSON.parse(survey.form_config),
+        form_config: parseJsonField<SurveyFormConfig>(survey.form_config),
       };
     } catch (error: any) {
       console.error('Error fetching default survey:', error.message);
@@ -241,7 +248,7 @@ export class SurveyService {
       const survey = result.rows[0];
       return {
         ...survey,
-        form_config: JSON.parse(survey.form_config),
+        form_config: parseJsonField<SurveyFormConfig>(survey.form_config),
       };
     } catch (error: any) {
       console.error('Error updating survey:', error.message);
@@ -278,27 +285,35 @@ export class SurveyService {
       enumeratorEmail?: string;
       enumeratorName?: string;
       isDraft?: boolean;
+      projectId?: string | null;
     }
   ): Promise<SurveySubmission> {
     try {
-      let geom = null;
-      if (options?.latitude && options?.longitude) {
-        geom = `POINT(${options.longitude} ${options.latitude})`;
-      }
+      // Ensure project context is stored with the response data (server-sourced)
+      const storedResponse = {
+        ...responseData,
+        _project_id: options?.projectId || null,
+      };
+
+      const hasLocation = options?.latitude != null && options?.longitude != null;
+      const geomExpression = hasLocation
+        ? 'ST_SetSRID(ST_MakePoint($3::double precision, $2::double precision), 4326)'
+        : 'NULL';
 
       const result = await pool.query(
-        `INSERT INTO survey_submissions (survey_id, latitude, longitude, geom, enumerator_email, enumerator_name, response_data, is_draft, status)
-         VALUES ($1, $2, $3, ${geom ? `ST_GeomFromText('${geom}', 4326)` : 'NULL'}, $4, $5, $6, $7, $8)
-         RETURNING id, survey_id, latitude, longitude, enumerator_email, enumerator_name, response_data, is_draft, status, flag_reason, created_at, updated_at`,
+        `INSERT INTO survey_submissions (survey_id, latitude, longitude, geom, enumerator_email, enumerator_name, response_data, is_draft, status, project_id)
+         VALUES ($1, $2::numeric, $3::numeric, ${geomExpression}, $4, $5, $6, $7, $8, $9)
+         RETURNING id, survey_id, latitude, longitude, enumerator_email, enumerator_name, response_data, is_draft, status, flag_reason, project_id, created_at, updated_at`,
         [
           surveyId,
-          options?.latitude || null,
-          options?.longitude || null,
+          options?.latitude ?? null,
+          options?.longitude ?? null,
           options?.enumeratorEmail || null,
           options?.enumeratorName || null,
-          JSON.stringify(responseData),
+          JSON.stringify(storedResponse),
           options?.isDraft || false,
           options?.isDraft ? 'draft' : 'submitted',
+          options?.projectId || null,
         ]
       );
 
@@ -309,7 +324,8 @@ export class SurveyService {
       const submission = result.rows[0];
       return {
         ...submission,
-        response_data: JSON.parse(submission.response_data),
+        project_id: submission.project_id || null,
+        response_data: parseJsonField<Record<string, any>>(submission.response_data),
       };
     } catch (error: any) {
       console.error('Error submitting survey response:', error.message);
@@ -322,11 +338,11 @@ export class SurveyService {
    */
   static async getSurveySubmissions(
     surveyId: number,
-    filters?: { status?: string; enumeratorEmail?: string }
+    filters?: { status?: string; enumeratorEmail?: string; projectId?: string }
   ): Promise<SurveySubmission[]> {
     try {
       let query = `
-        SELECT id, survey_id, latitude, longitude, enumerator_email, enumerator_name, response_data, is_draft, status, flag_reason, created_at, updated_at
+        SELECT id, survey_id, latitude, longitude, enumerator_email, enumerator_name, response_data, is_draft, status, flag_reason, project_id, created_at, updated_at
         FROM survey_submissions
         WHERE survey_id = $1
       `;
@@ -344,13 +360,19 @@ export class SurveyService {
         values.push(filters.enumeratorEmail);
       }
 
+      if (filters?.projectId) {
+        query += ` AND project_id = $${paramCount++}`;
+        values.push(filters.projectId);
+      }
+
       query += ` ORDER BY created_at DESC`;
 
       const result = await pool.query(query, values);
 
       return result.rows.map((submission: any) => ({
         ...submission,
-        response_data: JSON.parse(submission.response_data),
+        project_id: submission.project_id || null,
+        response_data: parseJsonField<Record<string, any>>(submission.response_data),
       }));
     } catch (error: any) {
       console.error('Error fetching submissions:', error.message);
@@ -474,7 +496,7 @@ export class SurveyService {
 
       return result.rows.map((template: any) => ({
         ...template,
-        form_config: JSON.parse(template.form_config),
+        form_config: parseJsonField<SurveyFormConfig>(template.form_config),
       }));
     } catch (error: any) {
       console.error('Error fetching templates:', error.message);
@@ -501,7 +523,7 @@ export class SurveyService {
         throw new Error('Template not found');
       }
 
-      const formConfig = JSON.parse(result.rows[0].form_config);
+      const formConfig = parseJsonField<SurveyFormConfig>(result.rows[0].form_config);
       return await this.createSurvey(title, formConfig, createdBy, options);
     } catch (error: any) {
       console.error('Error creating survey from template:', error.message);

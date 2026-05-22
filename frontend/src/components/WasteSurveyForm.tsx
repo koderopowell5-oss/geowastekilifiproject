@@ -5,8 +5,6 @@ import { wasteApiService } from '../services/wasteApi';
 import { cloudinaryService } from '../services/cloudinaryService';
 import { ChevronLeft, ChevronRight, CheckCircle2, X, Loader2, AlertTriangle, Upload } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
-import { SuccessCard } from './SuccessCard';
-import { FailCard } from './FailCard';
 
 interface WasteSurveyFormProps {
   onSubmitSuccess?: () => void;
@@ -14,6 +12,7 @@ interface WasteSurveyFormProps {
   hideHeader?: boolean;
   draftId?: string;
   initialData?: Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'>;
+  uploadedSurvey?: Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'>;
   userEmail?: string;
 }
 
@@ -125,21 +124,29 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
 
-  const [formData, setFormData] = useState<Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'>>(
-    initialData || {
-      latitude: 0, longitude: 0,
-      ward: 'Tezo', settlement_type: 'Formal', household_size: '1-3',
-      waste_types: [], waste_quantity: '<1kg', waste_separation: false,
-      disposal_method: 'County collection', distance_to_site: '<100m',
-      collection_frequency: 'Daily', road_access: 'Good', distance_to_road: '<50m',
-      waste_near_home: false, distance_to_waste: '<50m', impacts: [],
-      nearby_features: [], recommended_distance: '<200m', preferred_location: [],
-      distance_weight: 3, water_weight: 3, road_weight: 3, slope_weight: 3, landuse_weight: 3,
-      terrain: 'Flat', flooding: 'Never', policy_awareness: false,
-      support_new_site: 'Yes', preferred_management: 'Recycling',
-      challenges: '', suggested_location: '',
+  const defaultFormData: Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'> = uploadedSurvey || initialData || {
+    latitude: 0, longitude: 0,
+    ward: '', settlement_type: '', household_size: '',
+    waste_types: [], waste_quantity: '', waste_separation: false,
+    disposal_method: '', distance_to_site: '',
+    collection_frequency: '', road_access: '', distance_to_road: '',
+    waste_near_home: false, distance_to_waste: '', impacts: [],
+    nearby_features: [], recommended_distance: '', preferred_location: [],
+    distance_weight: 0, water_weight: 0, road_weight: 0, slope_weight: 0, landuse_weight: 0,
+    terrain: '', flooding: '', policy_awareness: false,
+    support_new_site: '', preferred_management: '',
+    challenges: '', suggested_location: '',
+  };
+
+  const [formData, setFormData] = useState<Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'>>(defaultFormData);
+
+  useEffect(() => {
+    if (uploadedSurvey) {
+      setFormData(uploadedSurvey);
+    } else if (initialData) {
+      setFormData(initialData);
     }
-  );
+  }, [uploadedSurvey, initialData]);
 
   useEffect(() => {
     (async () => {
@@ -457,15 +464,16 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
             </div>
           </div>
         </header>
-        <main className="body" style={{ paddingTop: '48px', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-          <SuccessCard 
-            title="Survey Recorded"
-            message="Waste site recorded successfully! The data has been saved and will help inform waste management planning."
-            onClose={() => {
+        <main className="body body--centered">
+          <div className="success-banner">
+            <div className="success-icon"><CheckCircle2 size={40} /></div>
+            <h2 className="success-title">Waste site submitted</h2>
+            <p className="success-text">Your survey has been saved successfully. The uploaded values are preserved and the form state remains intact.</p>
+            <button type="button" onClick={() => {
               setSuccess(false);
               if (onSubmitSuccess) onSubmitSuccess();
-            }}
-          />
+            }} className="btn btn--primary">Continue</button>
+          </div>
         </main>
       </div>
     </>
@@ -512,11 +520,13 @@ export const WasteSurveyForm: React.FC<WasteSurveyFormProps> = ({
           <hr className="divider" />
 
           {error && currentSection !== 0 && (
-            <FailCard 
-              title="Error"
-              message={error}
-              onClose={() => setError(null)}
-            />
+            <div className="inline-error">
+              <div className="inline-error-content">
+                <strong>Error</strong>
+                <p>{error}</p>
+              </div>
+              <button type="button" onClick={() => setError(null)} className="btn btn--ghost">Dismiss</button>
+            </div>
           )}
 
           <div key={animKey} className={`anim anim--${animDir}`}>
@@ -680,6 +690,71 @@ const css = `
   }
 
   .divider { border: none; border-top: 1px solid var(--border); }
+
+  .body--centered {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    padding-top: 0;
+  }
+
+  .success-banner {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    text-align: center;
+  }
+
+  .success-icon {
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    background: rgba(50,157,156,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--teal);
+  }
+
+  .success-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--teal-d);
+  }
+
+  .success-text {
+    max-width: 480px;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  .inline-error {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    border-radius: 14px;
+    background: #fff5f5;
+    border: 1px solid #f5c2c7;
+    color: #9f1239;
+  }
+
+  .inline-error-content {
+    flex: 1;
+  }
+
+  .inline-error-content strong {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
 
   /* ── Animations ── */
   @keyframes fwd { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }

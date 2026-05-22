@@ -3,20 +3,15 @@ import { Enumerator } from '../context/AuthContext';
 import { WasteSiteRecord } from '../../../types';
 import { wasteApiService } from '../services/wasteApi';
 import { useNotification } from '../context/NotificationContext';
+import { LoadingIcon } from './LoadingScreen';
 import {
   Mail, Phone, MapIcon, MapPin,
-  ChevronLeft, ArrowRight, Calendar, Layers, Home, AlertCircle, Loader2, Trash2,
+  ChevronLeft, ArrowRight, Calendar, Layers, Home, AlertCircle, Trash2, Key,
 } from 'lucide-react';
 
 interface EnumeratorsPageProps {
   sites: WasteSiteRecord[];
 }
-
-const ENUMERATORS: Enumerator[] = [
-  { id: '1', name: 'John Kamau',    email: 'enumerator1@geowaste.com', ward: 'Tezo',   phone: '+254712345678' },
-  { id: '2', name: 'Mary Kipchoge', email: 'enumerator2@geowaste.com', ward: 'Sokoni', phone: '+254723456789' },
-  { id: '3', name: 'David Omondi', email: 'enumerator3@geowaste.com', ward: 'Tezo',   phone: '+254734567890' },
-];
 
 // ─── Utilities ──────────────────────────────────────────────────────────────
 
@@ -44,11 +39,35 @@ const EnumeratorDetailPage: React.FC<{
   enumerator: Enumerator;
   sites: WasteSiteRecord[];
   onBack: () => void;
-  onDelete: (id: string) => Promise<void>;
+  onDelete: (id: string | number) => Promise<void>;
 }> = ({ enumerator, sites, onBack, onDelete }) => {
   const { showSuccess, showError } = useNotification();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showResetForm, setShowResetForm] = useState(false);
+  const [resetData, setResetData] = useState({ newPassword: '', confirmPassword: '' });
+  const [isResetting, setIsResetting] = useState(false);
   const stats = getEnumeratorStats(enumerator, sites);
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!resetData.newPassword || resetData.newPassword !== resetData.confirmPassword) {
+      showError('Passwords must match and cannot be empty');
+      return;
+    }
+
+    try {
+      setIsResetting(true);
+      await wasteApiService.resetAdminEnumeratorPassword(Number(enumerator.id), resetData.newPassword);
+      showSuccess('Password reset successfully');
+      setResetData({ newPassword: '', confirmPassword: '' });
+      setShowResetForm(false);
+    } catch (error: any) {
+      showError(error.message || 'Failed to reset password');
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!window.confirm(`Are you sure you want to remove ${enumerator.name}? This action cannot be undone.`)) {
@@ -137,6 +156,62 @@ const EnumeratorDetailPage: React.FC<{
               </div>
             </div>
           </div>
+
+          <div className="en-detail-actions">
+            <button
+              type="button"
+              className="en-action-btn"
+              onClick={() => setShowResetForm(true)}
+            >
+              <Key size={14} /> Reset password
+            </button>
+            <button
+              type="button"
+              className="en-action-btn en-action-btn--danger"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              <Trash2 size={14} /> Deactivate enumerator
+            </button>
+          </div>
+
+          {showResetForm && (
+            <form className="en-form" onSubmit={handleResetPassword}>
+              <div className="en-form-group">
+                <label className="en-form-label">New Password *</label>
+                <input
+                  type="password"
+                  className="en-form-input"
+                  value={resetData.newPassword}
+                  onChange={(e) => setResetData({ ...resetData, newPassword: e.target.value })}
+                  disabled={isResetting}
+                />
+              </div>
+              <div className="en-form-group">
+                <label className="en-form-label">Confirm Password *</label>
+                <input
+                  type="password"
+                  className="en-form-input"
+                  value={resetData.confirmPassword}
+                  onChange={(e) => setResetData({ ...resetData, confirmPassword: e.target.value })}
+                  disabled={isResetting}
+                />
+              </div>
+              <div className="en-form-actions">
+                <button
+                  type="button"
+                  className="en-form-btn"
+                  onClick={() => setShowResetForm(false)}
+                  disabled={isResetting}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="en-form-btn en-form-btn--primary" disabled={isResetting}>
+                  {isResetting ? 'Resetting…' : 'Reset password'}
+                </button>
+              </div>
+            </form>
+          )}
 
           {/* ── Stats ── */}
           <hr className="en-divider" />
@@ -249,9 +324,8 @@ const EnumeratorDetailPage: React.FC<{
 // ─── Main List Page ──────────────────────────────────────────────────────────
 
 export const EnumeratorsPage: React.FC<EnumeratorsPageProps> = ({ sites }) => {
-  const { showSuccess, showError } = useNotification();
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [enumerators, setEnumerators] = useState<Enumerator[]>(ENUMERATORS);
+  const [enumerators, setEnumerators] = useState<Enumerator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -261,7 +335,7 @@ export const EnumeratorsPage: React.FC<EnumeratorsPageProps> = ({ sites }) => {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await wasteApiService.getAllEnumerators();
+        const data = await wasteApiService.getAdminEnumerators();
         
         // Map API response to Enumerator interface
         const mappedEnumerators: Enumerator[] = data.map((e: any) => ({
@@ -270,19 +344,14 @@ export const EnumeratorsPage: React.FC<EnumeratorsPageProps> = ({ sites }) => {
           email: e.email || '',
           ward: e.ward || '',
           phone: e.phone || '',
+          account_type: e.account_type || 'enumerator',
         }));
 
-        if (mappedEnumerators.length > 0) {
-          setEnumerators(mappedEnumerators);
-        } else {
-          // Use mock data if no enumerators found
-          setEnumerators(ENUMERATORS);
-        }
+        setEnumerators(mappedEnumerators);
       } catch (err: any) {
         console.error('Failed to fetch enumerators:', err.message);
         setError(err.message || 'Failed to fetch enumerators');
-        // Fallback to mock data
-        setEnumerators(ENUMERATORS);
+        setEnumerators([]);
       } finally {
         setIsLoading(false);
       }
@@ -291,18 +360,18 @@ export const EnumeratorsPage: React.FC<EnumeratorsPageProps> = ({ sites }) => {
     fetchEnumerators();
   }, []);
 
-  const handleDeleteEnumerator = async (id: string) => {
+  const handleDeleteEnumerator = async (id: string | number) => {
     try {
-      const idNum = parseInt(id, 10);
-      await wasteApiService.deleteEnumerator(idNum);
-      setEnumerators(prev => prev.filter(e => e.id !== id));
+      const idNum = typeof id === 'number' ? id : parseInt(id, 10);
+      await wasteApiService.deleteAdminEnumerator(idNum);
+      setEnumerators(prev => prev.filter(e => String(e.id) !== String(id)));
       setDetailId(null);
     } catch (error: any) {
       throw error;
     }
   };
 
-  const selected = enumerators.find(e => e.id === detailId);
+  const selected = enumerators.find(e => String(e.id) === detailId);
   if (selected) {
     return (
       <EnumeratorDetailPage
@@ -340,7 +409,7 @@ export const EnumeratorsPage: React.FC<EnumeratorsPageProps> = ({ sites }) => {
             className="en-hero-img"
           />
           <div className="en-hero-overlay">
-            <p className="en-hero-label">GeoWaste Kilifi</p>
+            <p className="en-hero-label">GeoKollect</p>
             <p className="en-hero-sub">{enumerators.length} active field enumerators</p>
           </div>
         </div>
@@ -364,7 +433,7 @@ export const EnumeratorsPage: React.FC<EnumeratorsPageProps> = ({ sites }) => {
           {/* ── Loading state ── */}
           {isLoading && (
             <div className="en-loading-box">
-              <Loader2 size={20} className="en-loading-spinner" />
+              <LoadingIcon size={34} />
               <p className="en-loading-text">Loading enumerators...</p>
             </div>
           )}
@@ -436,7 +505,7 @@ export const EnumeratorsPage: React.FC<EnumeratorsPageProps> = ({ sites }) => {
                 ))}
               </div>
 
-              <p className="en-footer">GeoWaste Kilifi v1.0</p>
+              <p className="en-footer">GeoKollect v1.0</p>
             </>
           )}
 
@@ -720,6 +789,76 @@ const css = `
     display: block; margin-bottom: 2px;
   }
   .en-field-value { font-size: 14px; font-weight: 500; color: var(--text); display: block; }
+
+  .en-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 18px;
+  }
+
+  .en-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: white;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .en-action-btn:hover {
+    border-color: var(--teal);
+    color: var(--teal);
+  }
+
+  .en-action-btn--danger {
+    border-color: rgba(220, 38, 38, 0.2);
+    color: #dc2626;
+  }
+
+  .en-action-btn--danger:hover {
+    background: rgba(220, 38, 38, 0.05);
+  }
+
+  .en-form {
+    margin-top: 18px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .en-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .en-form-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  .en-form-input {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    color: var(--text);
+    background: #fcfcfc;
+  }
 
   /* ── Stat grid ── */
   .en-stat-grid {

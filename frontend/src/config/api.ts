@@ -5,26 +5,16 @@
 
 // Determine API base URL based on environment
 const getApiBaseUrl = (): string => {
-  // Use environment variable if set
-  if (process.env.REACT_APP_API_URL) {
-    return process.env.REACT_APP_API_URL;
+  const envApiUrl = process.env.REACT_APP_API_URL ||
+                     process.env.REACT_APP_API_BASE_URL ||
+                     process.env.REACT_APP_BACKEND_URL;
+
+  if (envApiUrl) {
+    return envApiUrl;
   }
 
-  // In production (Render deployment), use the full backend URL
-  if (process.env.NODE_ENV === 'production') {
-    // Get the current host and replace frontend port with backend port
-    // For Render: frontend is on one service, backend on another
-    const backendUrl = process.env.REACT_APP_BACKEND_URL;
-    if (backendUrl) {
-      return backendUrl;
-    }
-    
-    // Fallback for production if no explicit backend URL
-    return 'https://geowastekilifi-backend.onrender.com';
-  }
-
-  // Development: use relative path (proxied by nginx or dev server)
-  return 'http://localhost:5000';
+  // Fallback to a relative API root when no explicit backend URL is configured.
+  return '/api';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -59,8 +49,10 @@ export const getFetchOptions = (options?: RequestInit): RequestInit => {
   };
 };
 
-export default {
+const apiConfig = {
   API_BASE_URL,
   buildApiUrl,
   getFetchOptions,
 };
+
+export default apiConfig;

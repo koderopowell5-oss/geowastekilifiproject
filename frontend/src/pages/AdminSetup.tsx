@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, Loader2, ArrowLeft, Eye, EyeOff, Mail, Lock, User, Phone, MapPin } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { buildApiUrl } from '../config/api';
 
@@ -77,11 +76,42 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
         throw new Error(result.message || 'Registration failed');
       }
 
-      // Move to verification step
-      setRegistrationEmail(formData.email);
-      setStep('verification');
+      const requiresVerification = result.data?.requiresVerification !== false;
+
+      if (!requiresVerification) {
+        const token = result.data?.token;
+        const user = result.data?.user;
+        const projects = result.data?.projects;
+        const currentProjectId = result.data?.current_project_id;
+
+        if (token) {
+          localStorage.setItem('token', token);
+        }
+
+        if (user) {
+          localStorage.setItem('auth_user', JSON.stringify(user));
+          localStorage.setItem('auth_session_timestamp', Date.now().toString());
+        }
+
+        if (projects) {
+          localStorage.setItem('auth_user_projects', JSON.stringify(projects));
+        }
+
+        if (currentProjectId) {
+          localStorage.setItem('auth_current_project_id', currentProjectId);
+        }
+
+        showSuccess('✓ Account created! Redirecting...');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1200);
+      } else {
+        // Move to verification step
+        setRegistrationEmail(formData.email);
+        setStep('verification');
+        showSuccess('✓ Account created! Verification code sent to your email');
+      }
       setError(null);
-      showSuccess('✓ Account created! Verification code sent to your email');
     } catch (err: any) {
       const errMsg = err.message || 'Failed to create admin account';
       setError(errMsg);
@@ -139,6 +169,16 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
         };
         localStorage.setItem('auth_user', JSON.stringify(user));
         localStorage.setItem('auth_session_timestamp', Date.now().toString());
+      }
+
+      // Store projects and current project ID
+      const projects = result.data?.projects;
+      const currentProjectId = result.data?.current_project_id;
+      if (projects !== undefined && projects !== null) {
+        localStorage.setItem('auth_user_projects', JSON.stringify(projects));
+      }
+      if (currentProjectId) {
+        localStorage.setItem('auth_current_project_id', currentProjectId);
       }
 
       // Reload to let AuthContext detect logged-in user and show admin dashboard
@@ -554,7 +594,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
                     value={formData.projectName}
                     onChange={handleChange}
                     disabled={isLoading}
-                    placeholder="GeoWaste Kilifi"
+                    placeholder="GeoKollect"
                   />
                 </div>
               </div>
@@ -778,7 +818,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onBackToLogin }) => {
           )}
 
           <p className="admin-setup-footer">
-            GeoWaste Kilifi · Administrators
+            GeoKollect · Administrators
           </p>
         </main>
       </div>

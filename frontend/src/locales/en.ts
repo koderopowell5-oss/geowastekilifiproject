@@ -1,5 +1,5 @@
 /**
- * English Translations for GeoWaste Kilifi
+ * English Translations for GeoKollect
  */
 
 export const en = {

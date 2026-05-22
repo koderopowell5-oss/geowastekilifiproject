@@ -3,7 +3,7 @@
  * Handles image uploads to backend for secure Cloudinary storage
  */
 
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL, buildApiUrl } from '../config/api';
 
 export class CloudinaryService {
   /**
@@ -56,7 +56,7 @@ export class CloudinaryService {
         const formData = new FormData();
         formData.append('image', file);
 
-        xhr.open('POST', `${API_BASE_URL}/api/upload/image`);
+        xhr.open('POST', buildApiUrl('/upload/image'));
         xhr.send(formData);
       });
     } catch (error: any) {

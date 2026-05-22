@@ -1,5 +1,5 @@
 /**
- * Swahili Translations for GeoWaste Kilifi
+ * Swahili Translations for GeoKollect
  */
 
 export const sw = {

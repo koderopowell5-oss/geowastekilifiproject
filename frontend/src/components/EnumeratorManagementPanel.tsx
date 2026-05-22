@@ -1,19 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Users, Plus, Trash2, Key, ChevronRight, Mail, Phone, AlertCircle, Loader2,
-} from 'lucide-react';
+import React, { useState } from 'react';
+import { Users, Plus, Loader2, AlertCircle } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
-import { buildApiUrl } from '../config/api';
-
-interface Enumerator {
-  id: number;
-  name: string;
-  email: string;
-  phone?: string;
-  ward?: string;
-  account_type: 'admin' | 'enumerator';
-  created_at?: string;
-}
+import { useAuth } from '../context/AuthContext';
+import { wasteApiService } from '../services/wasteApi';
 
 interface EnumeratorManagementProps {
   onCreateSuccess?: () => void;
@@ -21,15 +10,11 @@ interface EnumeratorManagementProps {
 
 export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCreateSuccess }) => {
   const { showSuccess, showError } = useNotification();
-  const [enumerators, setEnumerators] = useState<Enumerator[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { currentProjectId } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [selectedEnumerator, setSelectedEnumerator] = useState<Enumerator | null>(null);
-  const [showResetForm, setShowResetForm] = useState(false);
   const [showCredentials, setShowCredentials] = useState(false);
   const [generatedCredentials, setGeneratedCredentials] = useState<{ email: string; password: string } | null>(null);
-
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -37,41 +22,6 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
     phone: '',
     ward: '',
   });
-
-  const [resetData, setResetData] = useState({
-    newPassword: '',
-    confirmPassword: '',
-  });
-
-  const fetchEnumerators = async () => {
-    try {
-      setIsLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch(buildApiUrl('/admin/enumerators'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch enumerators');
-      }
-
-      const result = await response.json();
-      setEnumerators(result.data || []);
-    } catch (error: any) {
-      showError(error.message || 'Failed to load enumerators');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchEnumerators();
-    // Only fetch on mount - don't add fetchEnumerators to deps to avoid infinite loop
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,28 +33,16 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
 
     try {
       setIsCreating(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch(buildApiUrl('/admin/enumerators'), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
+      const payload = {
+        ...formData,
+        project_id: currentProjectId,
+      };
+      const result = await wasteApiService.createAdminEnumerator(payload);
 
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.message || 'Failed to create enumerator');
-      }
-
-      const result = await response.json();
-      
-      // Display generated credentials for admin to share
-      if (result.data?.credentials) {
+      if (result?.credentials) {
         setGeneratedCredentials({
-          email: result.data.credentials.email,
-          password: result.data.credentials.password,
+          email: result.credentials.email,
+          password: result.credentials.password,
         });
         setShowCredentials(true);
       }
@@ -112,81 +50,9 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
       showSuccess(`Enumerator ${formData.name} created successfully`);
       setFormData({ name: '', email: '', password: '', phone: '', ward: '' });
       setShowCreateForm(false);
-      fetchEnumerators();
       onCreateSuccess?.();
     } catch (error: any) {
       showError(error.message || 'Failed to create enumerator');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!resetData.newPassword || resetData.newPassword !== resetData.confirmPassword) {
-      showError('Passwords do not match or are empty');
-      return;
-    }
-
-    if (!selectedEnumerator) return;
-
-    try {
-      setIsCreating(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch(
-        buildApiUrl(`/admin/enumerators/${selectedEnumerator.id}/reset-password`),
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ password: resetData.newPassword }),
-        }
-      );
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.message || 'Failed to reset password');
-      }
-
-      showSuccess('Password reset successfully');
-      setResetData({ newPassword: '', confirmPassword: '' });
-      setShowResetForm(false);
-      setSelectedEnumerator(null);
-    } catch (error: any) {
-      showError(error.message || 'Failed to reset password');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleDelete = async (enumerator: Enumerator) => {
-    if (!window.confirm(`Are you sure you want to deactivate ${enumerator.name}?`)) {
-      return;
-    }
-
-    try {
-      setIsCreating(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch(buildApiUrl(`/admin/enumerators/${enumerator.id}`), {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.message || 'Failed to deactivate enumerator');
-      }
-
-      showSuccess(`${enumerator.name} has been deactivated`);
-      fetchEnumerators();
-    } catch (error: any) {
-      showError(error.message || 'Failed to deactivate enumerator');
     } finally {
       setIsCreating(false);
     }
@@ -260,7 +126,6 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
       display: flex;
       flex-direction: column;
       gap: 12px;
-      margin-bottom: 16px;
     }
 
     .enum-form-group {
@@ -289,12 +154,6 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
 
     .enum-form-input:focus {
       border-color: var(--teal);
-    }
-
-    .enum-form-input:disabled {
-      background: #f0f0f0;
-      cursor: not-allowed;
-      opacity: 0.6;
     }
 
     .enum-form-actions {
@@ -362,13 +221,6 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
       gap: 16px;
     }
 
-    .enum-credentials-content h4 {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--teal-d);
-    }
-
     .enum-credentials-note {
       margin: 0;
       padding: 12px;
@@ -386,14 +238,6 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
       display: flex;
       flex-direction: column;
       gap: 6px;
-    }
-
-    .enum-credentials-field label {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--muted);
     }
 
     .enum-credentials-value {
@@ -437,133 +281,7 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
       justify-content: center;
       margin-top: 8px;
     }
-
-    .enum-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .enum-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px;
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      transition: all 0.15s;
-    }
-
-    .enum-item:hover {
-      border-color: var(--teal);
-      box-shadow: 0 2px 8px rgba(50,157,156,0.08);
-    }
-
-    .enum-item-icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 8px;
-      background: rgba(50,157,156,0.07);
-      border: 1px solid rgba(50,157,156,0.12);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--teal);
-      flex-shrink: 0;
-    }
-
-    .enum-item-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .enum-item-name {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .enum-item-email {
-      font-size: 11px;
-      color: var(--muted);
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      margin-top: 2px;
-    }
-
-    .enum-item-actions {
-      display: flex;
-      gap: 6px;
-    }
-
-    .enum-item-btn {
-      padding: 6px 10px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: white;
-      color: var(--text);
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .enum-item-btn:hover:not(:disabled) {
-      border-color: var(--teal);
-      color: var(--teal);
-    }
-
-    .enum-item-btn--danger {
-      color: #dc2626;
-      border-color: rgba(220,38,38,0.3);
-    }
-
-    .enum-item-btn--danger:hover:not(:disabled) {
-      border-color: #dc2626;
-      background: rgba(220,38,38,0.05);
-    }
-
-    .enum-empty {
-      text-align: center;
-      padding: 32px 16px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    .enum-loading {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 32px;
-      color: var(--muted);
-    }
-
-    .enum-loading svg {
-      animation: spin 1s linear infinite;
-      margin-right: 8px;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
   `;
-
-  if (isLoading) {
-    return (
-      <>
-        <style>{css}</style>
-        <div className="enum-loading">
-          <Loader2 size={16} />
-          Loading enumerators...
-        </div>
-      </>
-    );
-  }
 
   return (
     <>
@@ -667,55 +385,6 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
           </form>
         )}
 
-        {showResetForm && selectedEnumerator && (
-          <form onSubmit={handleResetPassword} className="enum-form">
-            <div className="enum-form-group">
-              <label className="enum-form-label">
-                Reset Password for {selectedEnumerator.name}
-              </label>
-            </div>
-            <div className="enum-form-group">
-              <label className="enum-form-label">New Password *</label>
-              <input
-                type="password"
-                className="enum-form-input"
-                placeholder="••••••••••••"
-                value={resetData.newPassword}
-                onChange={(e) => setResetData({ ...resetData, newPassword: e.target.value })}
-                disabled={isCreating}
-              />
-            </div>
-            <div className="enum-form-group">
-              <label className="enum-form-label">Confirm Password *</label>
-              <input
-                type="password"
-                className="enum-form-input"
-                placeholder="••••••••••••"
-                value={resetData.confirmPassword}
-                onChange={(e) => setResetData({ ...resetData, confirmPassword: e.target.value })}
-                disabled={isCreating}
-              />
-            </div>
-            <div className="enum-form-actions">
-              <button
-                type="button"
-                className="enum-form-btn"
-                onClick={() => {
-                  setShowResetForm(false);
-                  setSelectedEnumerator(null);
-                  setResetData({ newPassword: '', confirmPassword: '' });
-                }}
-                disabled={isCreating}
-              >
-                Cancel
-              </button>
-              <button type="submit" className="enum-form-btn enum-form-btn--primary" disabled={isCreating}>
-                {isCreating ? 'Resetting…' : 'Reset Password'}
-              </button>
-            </div>
-          </form>
-        )}
-
         {showCredentials && generatedCredentials && (
           <div className="enum-credentials-modal">
             <div className="enum-credentials-content">
@@ -724,14 +393,14 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
                 <AlertCircle size={14} />
                 Share these credentials securely with the enumerator. They will need them to log in.
               </p>
-              
+
               <div className="enum-credentials-field">
                 <label>Email</label>
                 <div className="enum-credentials-value">
-                  <input 
-                    type="text" 
-                    value={generatedCredentials.email} 
-                    readOnly 
+                  <input
+                    type="text"
+                    value={generatedCredentials.email}
+                    readOnly
                     className="enum-credentials-input"
                   />
                   <button
@@ -750,10 +419,10 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
               <div className="enum-credentials-field">
                 <label>Password</label>
                 <div className="enum-credentials-value">
-                  <input 
-                    type="text" 
-                    value={generatedCredentials.password} 
-                    readOnly 
+                  <input
+                    type="text"
+                    value={generatedCredentials.password}
+                    readOnly
                     className="enum-credentials-input"
                   />
                   <button
@@ -784,51 +453,8 @@ export const EnumeratorManagement: React.FC<EnumeratorManagementProps> = ({ onCr
             </div>
           </div>
         )}
-
-        <div className="enum-list">
-          {enumerators.length === 0 ? (
-            <div className="enum-empty">
-              No enumerators yet. Create one to get started.
-            </div>
-          ) : (
-            enumerators.map((enumerator) => (
-              <div key={enumerator.id} className="enum-item">
-                <div className="enum-item-icon">
-                  <Users size={16} />
-                </div>
-                <div className="enum-item-info">
-                  <div className="enum-item-name">{enumerator.name}</div>
-                  <div className="enum-item-email">
-                    <Mail size={10} />
-                    {enumerator.email}
-                  </div>
-                </div>
-                <div className="enum-item-actions">
-                  <button
-                    className="enum-item-btn"
-                    onClick={() => {
-                      setSelectedEnumerator(enumerator);
-                      setShowResetForm(true);
-                    }}
-                    disabled={isCreating}
-                    title="Reset password"
-                  >
-                    <Key size={12} />
-                  </button>
-                  <button
-                    className="enum-item-btn enum-item-btn--danger"
-                    onClick={() => handleDelete(enumerator)}
-                    disabled={isCreating}
-                    title="Deactivate enumerator"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
       </div>
     </>
   );
 };
+

@@ -4,6 +4,8 @@
 -- NOTE: This database uses waste_sites, not surveys. Adjusted accordingly.
 -- ============================================================================
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- 1. Create projects table (with integer admin_id to match enumerators)
 CREATE TABLE IF NOT EXISTS projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -15,8 +17,8 @@ CREATE TABLE IF NOT EXISTS projects (
   UNIQUE(name)
 );
 
-CREATE INDEX idx_projects_admin_id ON projects(admin_id);
-CREATE INDEX idx_projects_created_at ON projects(created_at);
+CREATE INDEX IF NOT EXISTS idx_projects_admin_id ON projects(admin_id);
+CREATE INDEX IF NOT EXISTS idx_projects_created_at ON projects(created_at);
 
 -- 2. Create roles table
 CREATE TABLE IF NOT EXISTS roles (
@@ -43,9 +45,9 @@ CREATE TABLE IF NOT EXISTS enumerator_roles (
   PRIMARY KEY (enumerator_id, project_id, role_id)
 );
 
-CREATE INDEX idx_enumerator_roles_enumerator_id ON enumerator_roles(enumerator_id);
-CREATE INDEX idx_enumerator_roles_project_id ON enumerator_roles(project_id);
-CREATE INDEX idx_enumerator_roles_role_id ON enumerator_roles(role_id);
+CREATE INDEX IF NOT EXISTS idx_enumerator_roles_enumerator_id ON enumerator_roles(enumerator_id);
+CREATE INDEX IF NOT EXISTS idx_enumerator_roles_project_id ON enumerator_roles(project_id);
+CREATE INDEX IF NOT EXISTS idx_enumerator_roles_role_id ON enumerator_roles(role_id);
 
 -- 4. Create form_sharing table (NOTE: References waste_sites, not surveys)
 CREATE TABLE IF NOT EXISTS form_sharing (
@@ -53,14 +55,14 @@ CREATE TABLE IF NOT EXISTS form_sharing (
   enumerator_id INTEGER NOT NULL REFERENCES enumerators(id) ON DELETE CASCADE,
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   shared_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  shared_by_id INTEGER NOT NULL REFERENCES enumerators(id) ON DELETE SET NULL,
+  shared_by_id INTEGER REFERENCES enumerators(id) ON DELETE SET NULL,
   permissions JSONB DEFAULT '["download", "submit"]'::jsonb,
   PRIMARY KEY (form_id, enumerator_id)
 );
 
-CREATE INDEX idx_form_sharing_enumerator_id ON form_sharing(enumerator_id);
-CREATE INDEX idx_form_sharing_project_id ON form_sharing(project_id);
-CREATE INDEX idx_form_sharing_shared_by_id ON form_sharing(shared_by_id);
+CREATE INDEX IF NOT EXISTS idx_form_sharing_enumerator_id ON form_sharing(enumerator_id);
+CREATE INDEX IF NOT EXISTS idx_form_sharing_project_id ON form_sharing(project_id);
+CREATE INDEX IF NOT EXISTS idx_form_sharing_shared_by_id ON form_sharing(shared_by_id);
 
 -- 5. Create project_invites table
 CREATE TABLE IF NOT EXISTS project_invites (
@@ -75,21 +77,19 @@ CREATE TABLE IF NOT EXISTS project_invites (
   accepted_at TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX idx_project_invites_email ON project_invites(email);
-CREATE INDEX idx_project_invites_project_id ON project_invites(project_id);
-CREATE INDEX idx_project_invites_invite_code ON project_invites(invite_code);
-CREATE INDEX idx_project_invites_expires_at ON project_invites(expires_at);
-CREATE INDEX idx_project_invites_status ON project_invites(status);
+CREATE INDEX IF NOT EXISTS idx_project_invites_email ON project_invites(email);
+CREATE INDEX IF NOT EXISTS idx_project_invites_project_id ON project_invites(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_invites_invite_code ON project_invites(invite_code);
+CREATE INDEX IF NOT EXISTS idx_project_invites_expires_at ON project_invites(expires_at);
+CREATE INDEX IF NOT EXISTS idx_project_invites_status ON project_invites(status);
 
--- 6. Add project_id columns to existing tables
+-- 6. Add project_id columns to existing tables that definitely exist
 ALTER TABLE enumerators ADD COLUMN IF NOT EXISTS primary_project_id UUID REFERENCES projects(id) ON DELETE SET NULL;
 ALTER TABLE waste_sites ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id) ON DELETE CASCADE;
-ALTER TABLE waste_site_drafts ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id) ON DELETE CASCADE;
 
 -- Create indexes for project_id columns
 CREATE INDEX IF NOT EXISTS idx_enumerators_primary_project_id ON enumerators(primary_project_id);
 CREATE INDEX IF NOT EXISTS idx_waste_sites_project_id ON waste_sites(project_id);
-CREATE INDEX IF NOT EXISTS idx_waste_site_drafts_project_id ON waste_site_drafts(project_id);
 
 -- 7. Helper functions for permissions and project access
 

@@ -68,7 +68,7 @@ transporter.verify(function (error, success) {
         html: `
           <div style="font-family: Arial; max-width: 500px; margin: 0 auto;">
             <h2 style="color: #329D9C;">Email Service Test</h2>
-            <p>This is a test email from the GeoWaste Admin Portal email service.</p>
+            <p>This is a test email from the GeoKollect Admin Portal email service.</p>
             <p><strong>Sent at:</strong> ${new Date().toISOString()}</p>
             <p>If you received this, the SMTP service is working correctly! ✓</p>
           </div>

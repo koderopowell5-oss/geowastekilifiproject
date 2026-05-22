@@ -1,4 +1,4 @@
--- GeoWaste Kilifi - Render Database Setup
+-- GeoKollect - Render Database Setup
 -- Creates all necessary tables for production deployment
 
 -- ================== ENUMERATORS TABLE ==================

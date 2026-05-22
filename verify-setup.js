@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * GeoWaste Kilifi Setup Verification Script
+ * GeoKollect Setup Verification Script
  * Checks that all required dependencies, configurations, and files are in place
  * Usage: node verify-setup.js
  */
@@ -26,7 +26,7 @@ function check(name, condition, errorMsg = '') {
 }
 
 console.log('\n═══════════════════════════════════════════════════════');
-console.log('  GeoWaste Kilifi - Setup Verification');
+console.log('  GeoKollect - Setup Verification');
 console.log('═══════════════════════════════════════════════════════\n');
 
 // Check backend structure

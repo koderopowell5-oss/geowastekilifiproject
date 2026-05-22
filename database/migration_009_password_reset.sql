@@ -18,7 +18,7 @@ CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_email ON password_reset_tok
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_enumerator_id ON password_reset_tokens(enumerator_id);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
 
--- Create index for finding valid (unused and not expired) tokens
+-- Create an index for finding unused password reset tokens
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_valid 
   ON password_reset_tokens(token) 
-  WHERE used_at IS NULL AND expires_at > CURRENT_TIMESTAMP;
+  WHERE used_at IS NULL;

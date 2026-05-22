@@ -146,7 +146,7 @@ export class EmailService {
         const info = await this.transporter.sendMail({
           from:
             process.env.SMTP_FROM ||
-            `"GeoWaste Kilifi" <${process.env.SMTP_USER}>`,
+            `"GeoKollect" <${process.env.SMTP_USER}>`,
 
           to,
           subject,
@@ -233,7 +233,7 @@ export class EmailService {
       </p>
 
       <p>
-        Please log in to the GeoWaste Kilifi dashboard
+        Please log in to the GeoKollect dashboard
         to begin your assignment.
       </p>
 
@@ -341,7 +341,7 @@ export class EmailService {
       <h2>${subject}</h2>
       <p>${message.replace(/\n/g, '<br>')}</p>
       <hr>
-      <p><em>This is an automated alert from GeoWaste Kilifi.</em></p>
+      <p><em>This is an automated alert from GeoKollect.</em></p>
     `;
 
     return this.sendNotification(
@@ -400,14 +400,14 @@ export class EmailService {
 
       <p style="font-size:12px;color:#666;">
         <em>
-          This is an automated message from GeoWaste Kilifi.
+          This is an automated message from GeoKollect.
         </em>
       </p>
     `;
 
     return this.sendNotification(
       enumeratorEmail,
-      'Password Reset Request - GeoWaste Kilifi',
+      'Password Reset Request - GeoKollect',
       html
     );
   }

@@ -493,7 +493,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
 
         {/* Footer */}
         <p className="text-center text-[10px] text-gray-300 mt-6 font-medium">
-          Enumerator Registration &mdash; GeoWaste Kilifi
+          Enumerator Registration &mdash; GeoKollect
         </p>
       </div>
     </div>

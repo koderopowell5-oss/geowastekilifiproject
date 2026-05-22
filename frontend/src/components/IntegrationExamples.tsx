@@ -1,4 +1,4 @@
-// INTEGRATION EXAMPLES FOR GEOWASTE KILIFI NOTIFICATION SYSTEM
+// INTEGRATION EXAMPLES FOR GeoKollect NOTIFICATION SYSTEM
 // ================================================================
 // 
 // This file shows example patterns for using the notification system.

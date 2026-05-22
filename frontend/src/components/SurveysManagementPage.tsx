@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Plus, Trash2, Edit, Download, Upload, Eye, Share2, Globe, Lock,
-  Loader, AlertCircle, Check, Search
+  Plus, Trash2, Edit, Download, Upload, Eye, Globe, Lock,
+  AlertCircle, Search
 } from 'lucide-react';
+import { LoadingIcon } from './LoadingScreen';
 import { useNotification } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
 import { SurveyBuilder, SurveyFormConfig } from './SurveyBuilder';
 import { buildApiUrl, getFetchOptions } from '../config/api';
 
@@ -27,19 +29,16 @@ export const SurveysManagementPage: React.FC = () => {
   const { showSuccess, showError } = useNotification();
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [view, setView] = useState<'list' | 'builder' | 'create'>('list');
+  const [view, setView] = useState<'list' | 'details' | 'create'>('list');
+  const { projects, currentProjectId } = useAuth();
   const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(null);
   const [editingSurvey, setEditingSurvey] = useState<Partial<Survey> | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [publishingSurveyId, setPublishingSurveyId] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (view === 'list') {
-      fetchSurveys();
-    }
-  }, [view]);
-
-  const fetchSurveys = async () => {
+  const fetchSurveys = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(buildApiUrl('/surveys'), {
@@ -48,17 +47,35 @@ export const SurveysManagementPage: React.FC = () => {
 
       if (!response.ok) throw new Error('Failed to fetch surveys');
 
-      const result = await response.json();
-      setSurveys(result.data || []);
+      const data = await response.json();
+      setSurveys(data.data || []);
     } catch (error: any) {
       showError(error.message || 'Failed to load surveys');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [showError]);
+
+  useEffect(() => {
+    if (view === 'list') {
+      fetchSurveys();
+    }
+  }, [view, fetchSurveys]);
 
   const handleCreateSurvey = (title: string) => {
     setEditingSurvey({ title, form_config: { sections: [] } });
+    setSelectedSurvey(null);
+    setView('create');
+  };
+
+  const handleViewSurvey = (survey: Survey) => {
+    setSelectedSurvey(survey);
+    setView('details');
+  };
+
+  const handleEditSurvey = (survey: Survey) => {
+    setEditingSurvey(survey);
+    setSelectedSurvey(null);
     setView('create');
   };
 
@@ -70,8 +87,11 @@ export const SurveysManagementPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch(buildApiUrl('/surveys'), {
-        method: 'POST',
+      const isUpdate = Boolean(editingSurvey?.id);
+      const endpoint = isUpdate ? `/surveys/${editingSurvey.id}` : '/surveys';
+      const method = isUpdate ? 'PUT' : 'POST';
+      const response = await fetch(buildApiUrl(endpoint), {
+        method,
         ...getFetchOptions(),
         body: JSON.stringify({
           title: editingSurvey.title,
@@ -84,9 +104,10 @@ export const SurveysManagementPage: React.FC = () => {
 
       if (!response.ok) throw new Error('Failed to save survey');
 
-      const result = await response.json();
-      showSuccess('Survey saved successfully');
+      await response.json();
+      showSuccess(isUpdate ? 'Survey updated successfully' : 'Survey saved successfully');
       setView('list');
+      setSelectedSurvey(null);
       setEditingSurvey(null);
       fetchSurveys();
     } catch (error: any) {
@@ -157,11 +178,130 @@ export const SurveysManagementPage: React.FC = () => {
     reader.readAsText(file);
   };
 
+  useEffect(() => {
+    if (!selectedProjectId) {
+      if (currentProjectId) {
+        setSelectedProjectId(currentProjectId);
+      } else if (projects.length > 0) {
+        setSelectedProjectId(projects[0].project.id);
+      }
+    }
+  }, [currentProjectId, projects, selectedProjectId]);
+
+  const handlePublishSurvey = async (surveyId: number) => {
+    if (!selectedProjectId) {
+      showError('Please choose a project first');
+      return;
+    }
+
+    setPublishingSurveyId(surveyId);
+    try {
+      const response = await fetch(
+        buildApiUrl(`/projects/${selectedProjectId}/forms/${surveyId}/publish`),
+        {
+          method: 'POST',
+          ...getFetchOptions(),
+        }
+      );
+
+      if (!response.ok) {
+        const errorBody = await response.json();
+        throw new Error(errorBody.message || 'Failed to publish survey');
+      }
+
+      showSuccess('Survey uploaded to project and available for enumerators');
+      fetchSurveys();
+    } catch (error: any) {
+      showError(error.message || 'Failed to publish survey');
+    } finally {
+      setPublishingSurveyId(null);
+    }
+  };
+
   const filteredSurveys = surveys.filter(
     (s) =>
       s.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (s.description?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
   );
+
+  if (view === 'details' && selectedSurvey) {
+    return (
+      <>
+        <style>{css}</style>
+        <div className="surveys-page">
+          <div className="surveys-header">
+            <button
+              className="surveys-back-btn"
+              onClick={() => {
+                setView('list');
+                setSelectedSurvey(null);
+              }}
+            >
+              ← Back to surveys
+            </button>
+            <div>
+              <h1>{selectedSurvey.title}</h1>
+              <p>{selectedSurvey.description || 'No description provided.'}</p>
+            </div>
+            <div className="surveys-header-actions">
+              {projects.length > 0 && (
+                <button
+                  className="surveys-btn surveys-btn--secondary"
+                  onClick={() => handlePublishSurvey(selectedSurvey.id)}
+                  disabled={!selectedProjectId || publishingSurveyId === selectedSurvey.id}
+                >
+                  <Upload size={16} /> Publish
+                </button>
+              )}
+              <button className="surveys-btn" onClick={() => handleEditSurvey(selectedSurvey)}>
+                <Edit size={16} /> Edit
+              </button>
+              <button className="surveys-btn" onClick={() => handleExportSurvey(selectedSurvey.id)}>
+                <Download size={16} /> Export
+              </button>
+              <button
+                className="surveys-btn surveys-btn--danger"
+                onClick={() => {
+                  if (window.confirm('Delete this survey? This cannot be undone.')) {
+                    handleDeleteSurvey(selectedSurvey.id);
+                  }
+                }}
+              >
+                <Trash2 size={16} /> Delete
+              </button>
+            </div>
+          </div>
+
+          <div className="survey-detail-meta">
+            <div className="survey-detail-row">
+              <strong>Version</strong>
+              <span>{selectedSurvey.version}</span>
+            </div>
+            <div className="survey-detail-row">
+              <strong>Created</strong>
+              <span>{new Date(selectedSurvey.created_at).toLocaleDateString()}</span>
+            </div>
+            <div className="survey-detail-row">
+              <strong>Updated</strong>
+              <span>{new Date(selectedSurvey.updated_at).toLocaleDateString()}</span>
+            </div>
+            <div className="survey-detail-row">
+              <strong>Visibility</strong>
+              <span>{selectedSurvey.is_public ? 'Public' : 'Private'}</span>
+            </div>
+            {selectedSurvey.organization && (
+              <div className="survey-detail-row">
+                <strong>Organization</strong>
+                <span>{selectedSurvey.organization}</span>
+              </div>
+            )}
+          </div>
+
+          <SurveyBuilder initialConfig={selectedSurvey.form_config} readOnly />
+        </div>
+      </>
+    );
+  }
 
   if (view === 'create' && editingSurvey) {
     return (
@@ -179,7 +319,7 @@ export const SurveysManagementPage: React.FC = () => {
               ← Back
             </button>
             <div>
-              <h1>Create New Survey</h1>
+              <h1>{editingSurvey.id ? 'Edit Survey' : 'Create New Survey'}</h1>
               <div className="surveys-create-header">
                 <input
                   type="text"
@@ -215,6 +355,22 @@ export const SurveysManagementPage: React.FC = () => {
               <p>Create, manage, and import custom questionnaires</p>
             </div>
             <div className="surveys-header-actions">
+              {projects.length > 0 && (
+                <div className="surveys-project-picker">
+                  <label htmlFor="publish-project">Publish target:</label>
+                  <select
+                    id="publish-project"
+                    value={selectedProjectId || ''}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                  >
+                    {projects.map((project) => (
+                      <option key={project.project.id} value={project.project.id}>
+                        {project.project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <label className="surveys-btn surveys-btn--secondary">
                 <Upload size={16} /> Import Survey
                 <input
@@ -250,7 +406,7 @@ export const SurveysManagementPage: React.FC = () => {
           {/* Content */}
           {isLoading ? (
             <div className="surveys-loading">
-              <Loader size={32} className="spin" />
+              <LoadingIcon size={40} />
               <p>Loading surveys...</p>
             </div>
           ) : filteredSurveys.length === 0 ? (
@@ -302,32 +458,37 @@ export const SurveysManagementPage: React.FC = () => {
 
                   <div className="survey-card-footer">
                     <small>{new Date(survey.created_at).toLocaleDateString()}</small>
-                    <div className="survey-card-actions">
-                      <button
-                        className="survey-action-btn"
-                        onClick={() => {
-                          setSelectedSurvey(survey);
-                          setView('builder');
-                        }}
-                        title="View Survey"
-                      >
-                        <Eye size={16} />
-                      </button>
-                      <button
-                        className="survey-action-btn"
-                        onClick={() => handleExportSurvey(survey.id)}
-                        title="Export Survey"
-                      >
-                        <Download size={16} />
-                      </button>
-                      <button
-                        className="survey-action-btn survey-action-btn--danger"
-                        onClick={() => setShowDeleteConfirm(survey.id)}
-                        title="Delete Survey"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+                            <div className="survey-card-actions">
+                        <button
+                          className="survey-action-btn"
+                          onClick={() => handleViewSurvey(survey)}
+                          title="View Survey"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          className="survey-action-btn"
+                          onClick={() => handleExportSurvey(survey.id)}
+                          title="Export Survey"
+                        >
+                          <Download size={16} />
+                        </button>
+                        <button
+                          className="survey-action-btn survey-action-btn--secondary"
+                          onClick={() => handlePublishSurvey(survey.id)}
+                          disabled={!selectedProjectId || publishingSurveyId === survey.id}
+                          title="Upload survey to selected project"
+                        >
+                          <Upload size={16} />
+                        </button>
+                        <button
+                          className="survey-action-btn survey-action-btn--danger"
+                          onClick={() => setShowDeleteConfirm(survey.id)}
+                          title="Delete Survey"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                   </div>
 
                   {showDeleteConfirm === survey.id && (
@@ -388,6 +549,7 @@ const css = `
     font-weight: 700;
     color: #205072;
     margin: 0 0 4px 0;
+    letter-spacing: -0.5px;
   }
 
   .surveys-header p {
@@ -405,7 +567,7 @@ const css = `
     background: white;
     border: 1.5px solid #e2ede8;
     padding: 10px 16px;
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
     font-size: 13px;
     font-weight: 600;
@@ -417,14 +579,16 @@ const css = `
   .surveys-back-btn:hover {
     background: #f6fbf8;
     border-color: #329D9C;
+    color: #329D9C;
   }
 
   .surveys-btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     padding: 10px 16px;
-    border-radius: 6px;
+    border-radius: 8px;
     border: none;
     font-size: 13px;
     font-weight: 600;
@@ -439,19 +603,20 @@ const css = `
   }
 
   .surveys-btn--primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(50, 157, 156, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(50, 157, 156, 0.25);
   }
 
   .surveys-btn--secondary {
     background: white;
-    color: #329D9C;
+    color: #205072;
     border: 1.5px solid #e2ede8;
   }
 
   .surveys-btn--secondary:hover {
     background: #f6fbf8;
     border-color: #329D9C;
+    color: #329D9C;
   }
 
   .surveys-btn--danger {
@@ -469,12 +634,17 @@ const css = `
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 16px;
+    padding: 12px 16px;
     background: white;
     border: 1.5px solid #e2ede8;
-    border-radius: 8px;
+    border-radius: 12px;
     margin-bottom: 24px;
     color: #7a9a8a;
+    transition: border-color 0.15s;
+  }
+
+  .surveys-search:focus-within {
+    border-color: #329D9C;
   }
 
   .surveys-search input {
@@ -488,6 +658,66 @@ const css = `
 
   .surveys-search input::placeholder {
     color: #7a9a8a;
+  }
+
+  .surveys-project-picker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: white;
+    border: 1.5px solid #e2ede8;
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #205072;
+    font-size: 13px;
+  }
+
+  .surveys-project-picker label {
+    font-weight: 600;
+    color: #7a9a8a;
+    white-space: nowrap;
+  }
+
+  .surveys-project-picker select {
+    border: 1.5px solid #e2ede8;
+    border-radius: 6px;
+    padding: 6px 10px;
+    background: #fff;
+    color: #205072;
+    min-width: 140px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  
+  .surveys-project-picker select:focus {
+    border-color: #329D9C;
+  }
+
+  .survey-detail-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+    padding: 20px 24px;
+    background: white;
+    border: 1.5px solid #e2ede8;
+    border-radius: 12px;
+  }
+  .survey-detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 13px;
+    color: #205072;
+  }
+  .survey-detail-row strong {
+    color: #7a9a8a;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
   }
 
   .surveys-loading {
@@ -537,12 +767,15 @@ const css = `
     border: 1.5px solid #e2ede8;
     border-radius: 12px;
     padding: 20px;
-    transition: all 0.3s;
+    transition: all 0.2s ease-in-out;
+    display: flex;
+    flex-direction: column;
   }
 
   .survey-card:hover {
     border-color: #329D9C;
-    box-shadow: 0 8px 24px rgba(50, 157, 156, 0.15);
+    box-shadow: 0 8px 24px rgba(50, 157, 156, 0.1);
+    transform: translateY(-2px);
   }
 
   .survey-card-header {
@@ -557,7 +790,8 @@ const css = `
     font-size: 16px;
     font-weight: 600;
     color: #205072;
-    margin: 0 0 4px 0;
+    margin: 0 0 6px 0;
+    line-height: 1.3;
   }
 
   .survey-card-meta {
@@ -578,10 +812,11 @@ const css = `
     align-items: center;
     gap: 4px;
     font-size: 10px;
-    font-weight: 600;
+    font-weight: 700;
     padding: 4px 8px;
-    border-radius: 4px;
+    border-radius: 6px;
     text-transform: uppercase;
+    letter-spacing: 0.3px;
   }
 
   .survey-badge--default {
@@ -604,38 +839,44 @@ const css = `
     color: #1c3a2e;
     margin: 8px 0;
     line-height: 1.5;
+    flex: 1;
   }
 
   .survey-card-org {
     font-size: 11px;
+    font-weight: 600;
     color: #7a9a8a;
-    margin: 8px 0 12px 0;
+    margin: 8px 0 16px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   .survey-card-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-top: 12px;
+    padding-top: 16px;
     border-top: 1px solid #e2ede8;
+    margin-top: auto;
   }
 
   .survey-card-footer small {
     color: #7a9a8a;
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 500;
   }
 
   .survey-card-actions {
     display: flex;
-    gap: 6px;
+    gap: 8px;
   }
 
   .survey-action-btn {
-    background: none;
-    border: none;
+    background: #f6fbf8;
+    border: 1.5px solid transparent;
     width: 32px;
     height: 32px;
-    border-radius: 6px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -646,37 +887,42 @@ const css = `
 
   .survey-action-btn:hover {
     background: #e8f5f2;
+    border-color: #329D9C;
   }
 
   .survey-action-btn--danger {
     color: #dc2626;
+    background: #fef2f2;
   }
 
   .survey-action-btn--danger:hover {
     background: #fee2e2;
+    border-color: #fca5a5;
   }
 
   .survey-delete-confirm {
-    margin-top: 12px;
-    padding-top: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
     border-top: 1px solid #e2ede8;
   }
 
   .survey-delete-confirm p {
-    font-size: 12px;
+    font-size: 13px;
+    font-weight: 500;
     color: #dc2626;
-    margin: 0 0 8px 0;
+    margin: 0 0 12px 0;
+    text-align: center;
   }
 
   .survey-confirm-actions {
     display: flex;
-    gap: 6px;
+    gap: 8px;
   }
 
   .survey-confirm-actions button {
     flex: 1;
     padding: 8px;
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .surveys-create-header {
@@ -692,17 +938,20 @@ const css = `
     font-size: 16px;
     font-family: 'DM Sans', sans-serif;
     color: #1c3a2e;
+    transition: border-color 0.15s;
   }
 
   .surveys-title-input:focus {
     outline: none;
     border-color: #329D9C;
-    background: #f6fbf8;
+    background: #fff;
+    box-shadow: 0 0 0 3px #e8f5f2;
   }
 
   @media (max-width: 768px) {
     .surveys-page {
       padding: 16px;
+      padding-bottom: 96px; /* space for bottom nav */
     }
 
     .surveys-header {
@@ -712,14 +961,34 @@ const css = `
 
     .surveys-header-actions {
       width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .surveys-project-picker {
+      grid-column: 1 / -1;
+      width: 100%;
+    }
+
+    .surveys-project-picker select {
+      flex: 1;
+      min-width: 0;
     }
 
     .surveys-btn {
-      flex: 1;
-      justify-content: center;
+      width: 100%;
+    }
+    
+    .surveys-btn--primary {
+      grid-column: 1 / -1;
     }
 
     .surveys-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .survey-detail-meta {
       grid-template-columns: 1fr;
     }
   }

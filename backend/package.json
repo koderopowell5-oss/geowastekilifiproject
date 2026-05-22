@@ -1,7 +1,7 @@
 {
   "name": "geowaste-kilifi-backend",
   "version": "1.0.0",
-  "description": "Backend API for GeoWaste Kilifi geospatial data collection system",
+  "description": "Backend API for GeoKollect geospatial data collection system",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn src/index.ts",

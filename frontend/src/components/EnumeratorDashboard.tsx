@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Home, MapPin, Edit3, Settings, User, Bell } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { Dashboard } from './Dashboard';
-import { WasteSurveyForm } from './WasteSurveyForm';
 import { WasteMap } from './WasteMap';
 import { ProfileTab } from './ProfileTab';
 import { FloatingTabBar } from './FloatingTabBar';
 import { CollectionsPage } from './CollectionsPage';
 import { NotificationPanel } from './NotificationPanel';
+import { DynamicSurveyForm, SurveyFormConfig } from './DynamicSurveyForm';
+import { wasteApiService } from '../services/wasteApi';
 
 // ─── Shared image banner ──────────────────────────────────────────────────────
 
@@ -41,13 +42,15 @@ const PageBanner: React.FC<{ src: string; alt: string }> = ({ src, alt }) => (
 
 export const EnumeratorDashboard: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<string>('home');
-  const [editingDraftId, setEditingDraftId] = useState<string | undefined>();
-  const [editingDraftData, setEditingDraftData] = useState<any>();
   const [showCollections, setShowCollections] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
-  const { user, logout, isAdmin } = useAuth();
-  const { showSuccess } = useNotification();
+  const [sharedForms, setSharedForms] = useState<Array<{ id: number; title: string; description?: string; form_config: SurveyFormConfig; shared_at?: string }>>([]);
+  const [selectedFormId, setSelectedFormId] = useState<number | null>(null);
+  const [loadingForms, setLoadingForms] = useState(false);
+  const { user, logout, isAdmin, projects, currentProjectId, switchProject } = useAuth();
+  const activeProject = projects?.find((project) => project.project.id === currentProjectId);
+  const { showSuccess, showError } = useNotification();
 
   const handleLogout = () => {
     logout();
@@ -59,23 +62,62 @@ export const EnumeratorDashboard: React.FC = () => {
     setShowSettings(true);
   };
 
-  const handleEditDraft = (draftId: string, formData: Record<string, any>) => {
-    setEditingDraftId(draftId);
-    setEditingDraftData(formData);
+  const handleEditDraft = (_draftId: string, _formData: Record<string, any>) => {
     setShowCollections(false);
   };
 
   const handleStartNew = () => {
-    setEditingDraftId(undefined);
-    setEditingDraftData(undefined);
     setShowCollections(false);
   };
 
   const handleSurveySuccess = () => {
-    setEditingDraftId(undefined);
-    setEditingDraftData(undefined);
     setCurrentPage('home');
+    showSuccess('Survey submitted successfully');
   };
+
+  // Fixed fetch method to prevent dependency loops
+  const fetchSharedForms = useCallback(async (projectId: string) => {
+    setLoadingForms(true);
+    try {
+      const forms = await wasteApiService.getSharedForms(projectId);
+      setSharedForms(forms);
+      
+      // Use functional state update to avoid adding selectedFormId to dependencies
+      setSelectedFormId((prevSelectedId) => {
+        if (!prevSelectedId && forms.length > 0) {
+          return forms[0].id;
+        } else if (prevSelectedId && !forms.some((form) => form.id === prevSelectedId) && forms.length > 0) {
+          return forms[0].id;
+        }
+        return prevSelectedId;
+      });
+
+    } catch (error: any) {
+      showError(error.message || 'Unable to load surveys for this project');
+      setSharedForms([]);
+      setSelectedFormId(null);
+    } finally {
+      setLoadingForms(false);
+    }
+  }, [showError]); // selectedFormId removed from dependencies
+
+  // Only triggers on component mount or when currentProjectId changes
+  useEffect(() => {
+    if (currentProjectId) {
+      fetchSharedForms(currentProjectId);
+    }
+  }, [currentProjectId, fetchSharedForms]);
+
+  const handleProjectChange = async (projectId: string) => {
+    try {
+      await switchProject(projectId);
+      await fetchSharedForms(projectId);
+    } catch (error: any) {
+      showError(error.message || 'Failed to switch project');
+    }
+  };
+
+  const selectedSurvey = sharedForms.find((form) => form.id === selectedFormId) || null;
 
   if (isAdmin) return null;
 
@@ -89,11 +131,15 @@ export const EnumeratorDashboard: React.FC = () => {
           <div className="enum-appbar-inner">
             <div className="enum-appbar-left">
               <div className="enum-app-icon">
-                <MapPin size={16} color="white" />
+                <img
+                  src="/images/Asset%201.svg"
+                  alt="GeoKollect logo"
+                  className="enum-app-logo"
+                />
               </div>
               <div>
-                <p className="enum-app-name">GeoWaste Kilifi</p>
-                <p className="enum-app-sub">Field Collection</p>
+                <p className="enum-app-name">GeoKollect</p>
+                <p className="enum-app-sub">Geospatial Data System</p>
               </div>
             </div>
 
@@ -153,19 +199,86 @@ export const EnumeratorDashboard: React.FC = () => {
                 <div className="enum-page">
                   <PageBanner src="images/survey.svg" alt="Survey" />
                   <div className="enum-page-content">
-                    <WasteSurveyForm
-                      hideHeader={true}
-                      draftId={editingDraftId}
-                      initialData={editingDraftData}
-                      userEmail={(user as any)?.email}
-                      onSubmitSuccess={handleSurveySuccess}
-                    />
-                    <div className="enum-collections-cta">
-                      <hr className="enum-divider" />
-                      <button className="enum-cta-btn" onClick={() => setShowCollections(true)}>
-                        View My Collections
-                      </button>
+                    <div className="enum-project-selector">
+                      <div>
+                        <strong>Active project:</strong>{' '}
+                        {activeProject?.project.name || 'None'}
+                        {activeProject?.project.admin?.name ? (
+                          <div style={{ marginTop: 4, fontSize: '0.9rem', color: '#666' }}>
+                            Admin: {activeProject.project.admin.name}
+                          </div>
+                        ) : null}
+                      </div>
+                      {projects?.length > 1 && (
+                        <select
+                          value={currentProjectId || ''}
+                          onChange={(event) => handleProjectChange(event.target.value)}
+                        >
+                          {projects.map((project) => (
+                            <option key={project.project.id} value={project.project.id}>
+                              {project.project.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
+
+                    {loadingForms ? (
+                      <div className="enum-survey-loading">
+                        <div className="spinner" />
+                        <p>Loading assigned questionnaires…</p>
+                      </div>
+                    ) : sharedForms.length === 0 ? (
+                      <div className="enum-survey-empty">
+                        <p>No questionnaires have been shared with this project yet.</p>
+                        <p>Check back once your admin has assigned a form.</p>
+                      </div>
+                    ) : (
+                      <div className="enum-survey-view">
+                        <aside className="enum-survey-sidebar">
+                          <h2>Assigned questionnaires</h2>
+                          <div className="enum-survey-list">
+                            {sharedForms.map((form) => (
+                              <button
+                                key={form.id}
+                                type="button"
+                                className={`enum-survey-item${selectedFormId === form.id ? ' active' : ''}`}
+                                onClick={() => setSelectedFormId(form.id)}
+                              >
+                                <span>{form.title}</span>
+                                <small>{form.description || 'No description provided'}</small>
+                              </button>
+                            ))}
+                          </div>
+                        </aside>
+
+                        <section className="enum-survey-main">
+                          {selectedSurvey ? (
+                            <>
+                              <div className="enum-survey-details">
+                                <h2>{selectedSurvey.title}</h2>
+                                {selectedSurvey.description && <p>{selectedSurvey.description}</p>}
+                              </div>
+                              <DynamicSurveyForm
+                                surveyId={selectedSurvey.id}
+                                formConfig={selectedSurvey.form_config}
+                                onSubmit={handleSurveySuccess}
+                              />
+                              <div className="enum-collections-cta">
+                                <hr className="enum-divider" />
+                                <button className="enum-cta-btn" onClick={() => setShowCollections(true)}>
+                                  View My Collections
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="enum-survey-empty">
+                              <p>Select a questionnaire to begin collecting data.</p>
+                            </div>
+                          )}
+                        </section>
+                      </div>
+                    )}
                   </div>
                 </div>
               ),
@@ -220,23 +333,12 @@ const css = `
     --r:      10px;
   }
 
-  /* ── Hide scrollbars on mobile ── */
-  @media (max-width: 768px) {
-    html, body {
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-    }
-    html::-webkit-scrollbar,
-    body::-webkit-scrollbar {
-      display: none;
-    }
-  }
-
   .enum-root {
     min-height: 100vh;
     background: var(--bg);
     font-family: 'DM Sans', sans-serif;
     color: var(--text);
+    overflow-x: hidden;
   }
 
   /* ── App bar ── */
@@ -254,10 +356,16 @@ const css = `
   }
   .enum-appbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .enum-app-icon {
-    width: 34px; height: 34px; border-radius: 9px;
-    background: var(--teal);
+    width: 34px; height: 34px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
+  }
+
+  .enum-app-logo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
   }
   .enum-app-name {
     font-size: 14px; font-weight: 600; color: var(--teal-d);
@@ -360,7 +468,7 @@ const css = `
   /* ── Collections CTA ── */
   .enum-collections-cta {
     max-width: 900px; margin: 0 auto;
-    padding: 0 24px 80px;
+    padding: 0 0 80px;
   }
   .enum-divider { border: none; border-top: 1px solid var(--border); margin-bottom: 24px; }
   .enum-cta-btn {
@@ -374,4 +482,176 @@ const css = `
     cursor: pointer; transition: all 0.15s;
   }
   .enum-cta-btn:hover { border-color: var(--teal); color: var(--teal); }
+
+  .enum-project-selector {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 18px 24px;
+    border-radius: var(--r);
+    background: #ffffff;
+    border: 1px solid var(--border);
+  }
+
+  .enum-project-selector select {
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    background: white;
+    font-family: 'DM Sans', sans-serif;
+    max-width: 100%;
+  }
+
+  .enum-survey-loading,
+  .enum-survey-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 48px 24px;
+    border-radius: var(--r);
+    border: 1.5px dashed var(--border);
+    background: #ffffff;
+    color: var(--muted);
+  }
+
+  /* BASE GRID (Overridden by mobile media query below) */
+  .enum-survey-view {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 24px;
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .enum-survey-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+    border-radius: var(--r);
+    background: #ffffff;
+    border: 1.5px solid var(--border);
+    position: sticky;
+    top: 80px;
+  }
+
+  .enum-survey-sidebar h2 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--teal-d);
+  }
+
+  .enum-survey-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .enum-survey-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    text-align: left;
+    border-radius: var(--r);
+    border: 1px solid transparent;
+    background: #f9faf9;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .enum-survey-item:hover,
+  .enum-survey-item.active {
+    border-color: var(--teal);
+    background: #f2faf7;
+  }
+
+  .enum-survey-item small {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .enum-survey-main {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+    min-width: 0; /* Important: Prevents flex children from bursting out */
+  }
+
+  .enum-survey-details {
+    padding: 20px;
+    border-radius: var(--r);
+    background: #ffffff;
+    border: 1.5px solid var(--border);
+  }
+
+  .enum-survey-details h2 {
+    margin: 0 0 8px;
+    color: var(--teal-d);
+  }
+
+  .enum-survey-details p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .spinner {
+    width: 30px;
+    height: 30px;
+    border: 4px solid #d8ede7;
+    border-top-color: var(--teal);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  /* ── Mobile Layout Fixes (Must remain at the bottom) ── */
+  @media (max-width: 768px) {
+    html, body {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      overflow-x: hidden;
+    }
+    
+    html::-webkit-scrollbar,
+    body::-webkit-scrollbar {
+      display: none;
+    }
+
+    .enum-page-content {
+      padding: 0 16px;
+    }
+
+    /* Change grid to vertical column */
+    .enum-survey-view {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .enum-survey-sidebar {
+      width: 100%;
+      position: relative;
+      top: 0;
+    }
+
+    .enum-survey-list {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .enum-project-selector {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    
+    .enum-project-selector select {
+      width: 100%;
+    }
+  }
 `;

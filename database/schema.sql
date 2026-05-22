@@ -1,8 +1,9 @@
--- GeoWaste Kilifi Database Schema
+-- GeoKollect Database Schema
 -- PostgreSQL with PostGIS extension
 
 -- Create PostGIS extension if not exists
 CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Create enumerators table
 CREATE TABLE IF NOT EXISTS enumerators (

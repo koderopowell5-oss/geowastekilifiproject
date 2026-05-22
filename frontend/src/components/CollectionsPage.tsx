@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { wasteApiService } from '../services/wasteApi';
 import { useNotification } from '../context/NotificationContext';
+import { LoadingScreen } from './LoadingScreen';
 import { WasteSiteRecord } from '../../../types';
 import {
   FileText, CheckCircle2, Clock, Trash2, Pencil,
@@ -12,11 +13,13 @@ import {
 
 interface DraftForm {
   id: string;
+  surveyId?: number;       // ADDED: Identifies if this is a dynamic survey
+  surveyTitle?: string;    // ADDED: Display title for the draft
   formData: Record<string, any>;
   createdAt: string;
   updatedAt: string;
   status: 'draft' | 'submitted';
-  ward: string;
+  ward?: string;
   coordinatesPassed?: boolean;
 }
 
@@ -35,35 +38,122 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
   const [filter, setFilter] = useState<'draft' | 'submitted' | 'all'>('all');
   const [submitting, setSubmitting] = useState<string | null>(null);
   const { showError, showSuccess } = useNotification();
-  const { user } = useAuth();
+  const { user, currentProjectId } = useAuth();
+
+  const mapSurveySubmissionToWasteSiteRecord = (submission: any): WasteSiteRecord => {
+    const rd = submission.response_data || {};
+
+    return {
+      id: submission.id?.toString(),
+      latitude: submission.latitude || 0,
+      longitude: submission.longitude || 0,
+      ward: rd.ward || rd.location?.ward || rd.ward_name || '',
+      settlement_type: rd.settlement_type || rd.settlementType || rd.settlement || '',
+      household_size: rd.household_size || rd.householdSize || '',
+      waste_types: Array.isArray(rd.waste_types)
+        ? rd.waste_types
+        : rd.waste_types
+          ? String(rd.waste_types).split(',').map((item: string) => item.trim())
+          : [],
+      waste_quantity: rd.waste_quantity || rd.wasteQuantity || '',
+      waste_separation: rd.waste_separation ?? rd.wasteSeparation ?? false,
+      disposal_method: rd.disposal_method || rd.disposalMethod || '',
+      distance_to_site: rd.distance_to_site || rd.distanceToSite || '',
+      collection_frequency: rd.collection_frequency || rd.collectionFrequency || '',
+      road_access: rd.road_access || rd.roadAccess || '',
+      distance_to_road: rd.distance_to_road || rd.distanceToRoad || '',
+      waste_near_home: rd.waste_near_home ?? rd.wasteNearHome ?? false,
+      distance_to_waste: rd.distance_to_waste || rd.distanceToWaste || '',
+      impacts: Array.isArray(rd.impacts)
+        ? rd.impacts
+        : rd.impacts
+          ? [rd.impacts]
+          : [],
+      nearby_features: Array.isArray(rd.nearby_features)
+        ? rd.nearby_features
+        : rd.nearby_features
+          ? [rd.nearby_features]
+          : [],
+      recommended_distance: rd.recommended_distance || rd.recommendedDistance || '',
+      preferred_location: rd.preferred_location || rd.preferredLocation || '',
+      distance_weight: rd.distance_weight || rd.distanceWeight || 0,
+      water_weight: rd.water_weight || rd.waterWeight || 0,
+      road_weight: rd.road_weight || rd.roadWeight || 0,
+      slope_weight: rd.slope_weight || rd.slopeWeight || 0,
+      landuse_weight: rd.landuse_weight || rd.landuseWeight || 0,
+      terrain: rd.terrain || '',
+      flooding: rd.flooding || '',
+      policy_awareness: rd.policy_awareness ?? rd.policyAwareness ?? false,
+      support_new_site: rd.support_new_site || rd.supportNewSite || '',
+      preferred_management: rd.preferred_management || rd.preferredManagement || '',
+      challenges: rd.challenges || rd.challenges || '',
+      suggested_location: rd.suggested_location || rd.suggestedLocation || '',
+      enumerator_email: submission.enumerator_email || undefined,
+      created_at: submission.created_at,
+      updated_at: submission.updated_at,
+    } as WasteSiteRecord;
+  };
 
   useEffect(() => {
     const fetchCollections = async () => {
       try {
         setLoading(true);
         const userEmail = (user as any)?.email;
-        if (!userEmail) { 
-          setError('User email not found'); 
-          setLoading(false); 
-          return; 
+        if (!userEmail) {
+          setError('User email not found');
+          setLoading(false);
+          return;
         }
 
-        // Fetch submitted collections from API
+        const loadedCollections: WasteSiteRecord[] = [];
+
         try {
           const result = await wasteApiService.getWasteSitesByEnumerator(userEmail);
-          setSubmittedCollections(result.records || []);
+          loadedCollections.push(...(result.records || []));
         } catch (e: any) {
-          console.error('Error fetching submitted collections:', e);
-          setSubmittedCollections([]);
+          console.warn('Error fetching static waste records:', e?.message || e);
         }
 
-        // Fetch drafts from localStorage
+        if (currentProjectId) {
+          try {
+            const sharedForms = await wasteApiService.getSharedForms(currentProjectId);
+            const submissionsByForm = await Promise.all(
+              sharedForms.map((form: any) =>
+                wasteApiService.getSurveySubmissions(form.id, userEmail, currentProjectId).catch((err) => {
+                  console.warn(`Failed to load submissions for survey ${form.id}:`, err?.message || err);
+                  return [];
+                })
+              )
+            );
+
+            const surveyRecords = submissionsByForm
+              .flat()
+              .filter((submission: any) => !submission.is_draft)
+              .filter((submission: any) => String(submission.project_id) === String(currentProjectId))
+              .map(mapSurveySubmissionToWasteSiteRecord);
+
+            loadedCollections.push(...surveyRecords);
+          } catch (submissionError: any) {
+            console.warn('Error fetching survey submissions:', submissionError?.message || submissionError);
+          }
+        }
+
+        loadedCollections.sort((a, b) => {
+          const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return bTime - aTime;
+        });
+
+        setSubmittedCollections(loadedCollections);
+
         const stored = localStorage.getItem(`geowaste_drafts_${userEmail}`);
         if (stored) {
           const parsed = JSON.parse(stored);
-          setDrafts(Array.isArray(parsed) ? parsed : []);
+          setDrafts(Array.isArray(parsed) ? parsed.filter(d => d.status === 'draft') : []);
+        } else {
+          setDrafts([]);
         }
-        
+
         setError(null);
       } catch (err: any) {
         const errMsg = err.message || 'Failed to load collections';
@@ -75,18 +165,22 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
     };
 
     fetchCollections();
-  }, [user, showError]);
+  }, [user, currentProjectId, showError]);
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
 
   const handleDelete = (id: string) => {
-    if (!window.confirm('Delete this survey?')) return;
+    if (!window.confirm('Delete this draft permanently?')) return;
     try {
       const userEmail = (user as any)?.email;
       const updated = drafts.filter(d => d.id !== id);
       localStorage.setItem(`geowaste_drafts_${userEmail}`, JSON.stringify(updated));
       setDrafts(updated);
-      showSuccess('Survey deleted');
+      showSuccess('Draft deleted');
     } catch {
-      showError('Failed to delete survey');
+      showError('Failed to delete draft');
     }
   };
 
@@ -94,13 +188,39 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
     setSubmitting(draft.id);
     try {
       const userEmail = (user as any)?.email;
-      await wasteApiService.submitWasteSite({
-        ...(draft.formData as Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'>),
-        enumerator_email: userEmail || undefined,
-      });
-      const updated = drafts.map(d => d.id === draft.id ? { ...d, status: 'submitted' as const } : d);
+      
+      // FIX: Check if it's a dynamic survey or an old static waste form
+      if (draft.surveyId) {
+        const submission = await wasteApiService.submitSurveyResponse(
+          draft.surveyId,
+          draft.formData,
+          draft.formData.latitude || undefined,
+          draft.formData.longitude || undefined,
+          false,
+          currentProjectId,
+          user?.email,
+          user?.name
+        );
+
+        setSubmittedCollections((prev) => [
+          mapSurveySubmissionToWasteSiteRecord(submission),
+          ...prev,
+        ]);
+      } else {
+        const wasteRecord = await wasteApiService.submitWasteSite({
+          ...(draft.formData as Omit<WasteSiteRecord, 'id' | 'created_at' | 'updated_at'>),
+          enumerator_email: userEmail || undefined,
+        });
+
+        setSubmittedCollections((prev) => [wasteRecord, ...prev]);
+      }
+
+      // Mark as submitted and remove from draft view
+      const stored = JSON.parse(localStorage.getItem(`geowaste_drafts_${userEmail}`) || '[]');
+      const updated = stored.map((d: DraftForm) => d.id === draft.id ? { ...d, status: 'submitted' as const } : d);
       localStorage.setItem(`geowaste_drafts_${userEmail}`, JSON.stringify(updated));
-      setDrafts(updated);
+      
+      setDrafts(drafts.filter(d => d.id !== draft.id));
       showSuccess('Survey submitted successfully');
     } catch (err: any) {
       showError(err.message || 'Submission failed');
@@ -110,8 +230,8 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
   };
 
   const counts = {
-    draft:     drafts.filter(d => d.status === 'draft').length,
-    submitted: submittedCollections.length, // Use API submitted collections count
+    draft:     drafts.length,
+    submitted: submittedCollections.length,
     all:       drafts.length + submittedCollections.length,
   };
 
@@ -121,7 +241,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
       id: s.id?.toString() || String(idx),
       _type: 'submitted' as const,
       _id: s.id?.toString() || String(idx),
-      title: `${s.ward} · ${s.settlement_type}`,
+      title: `${s.ward || 'Unknown'} · ${s.settlement_type || 'Submitted Data'}`,
       createdAt: s.created_at || new Date().toISOString(),
       _data: s,
     }));
@@ -222,7 +342,12 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
               {filtered.map((item: any, i) => {
                 const isSubmitting = submitting === item._id;
                 const isDraft = item._type === 'draft';
-                const ward = isDraft ? item.ward : item._data?.ward || '—';
+                
+                // FIX: Safely parse titles and meta based on if it's dynamic or static
+                const displayTitle = isDraft 
+                  ? (item.surveyTitle || item.ward || 'Draft Survey') 
+                  : (item.title || 'Submitted Survey');
+                  
                 const date = new Date(isDraft ? item.createdAt : item._data?.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
                 
                 return (
@@ -238,9 +363,9 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
 
                     {/* Middle: meta */}
                     <div className="col-item-body">
-                      <p className="col-item-id">Survey #{item._id.toString().slice(0, 8).toUpperCase()}</p>
+                      <p className="col-item-id">{displayTitle}</p>
                       <p className="col-item-meta">
-                        {ward} · {date}
+                        {isDraft && item.surveyId ? `Dynamic Survey · ${date}` : `ID: ${item._id.toString().slice(0, 8).toUpperCase()} · ${date}`}
                       </p>
                     </div>
 
@@ -283,7 +408,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onEditDraft, o
             </div>
           )}
 
-          <p className="col-footer">GeoWaste Kilifi v1.0</p>
+          <p className="col-footer">GeoKollect v1.0</p>
         </main>
       </div>
     </>
@@ -481,8 +606,9 @@ const css = `
   /* Meta */
   .col-item-body { flex: 1; min-width: 0; }
   .col-item-id {
-    font-size: 13px; font-weight: 600; color: var(--text);
-    font-family: 'DM Mono', monospace; margin-bottom: 3px;
+    font-size: 14px; font-weight: 600; color: var(--teal-d);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 3px;
   }
   .col-item-meta { font-size: 12px; color: var(--muted); }
 

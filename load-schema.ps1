@@ -1,4 +1,4 @@
-# GeoWaste Kilifi - Database Schema Loader
+# GeoKollect - Database Schema Loader
 # Loads PostGIS and the waste_sites schema
 
 Write-Host "=== Loading GeoWaste Schema ===" -ForegroundColor Green
@@ -13,7 +13,7 @@ $pgHost = "localhost"
 # Verify schema file exists
 if (-not (Test-Path $schemaFile)) {
     Write-Host "Schema file not found: $schemaFile" -ForegroundColor Red
-    Write-Host "Please run this script from the GeoWaste Kilifi project root" -ForegroundColor Yellow
+    Write-Host "Please run this script from the GeoKollect project root" -ForegroundColor Yellow
     exit 1
 }
 

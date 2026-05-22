@@ -186,13 +186,13 @@ export class NotificationService {
   ): Promise<boolean> {
     const html = `
       <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f6fbf8; border-radius: 12px; padding: 40px;">
-        <h1 style="color: #329D9C; text-align: center; margin-bottom: 10px; font-size: 24px;">Welcome to GeoWaste Kilifi</h1>
+        <h1 style="color: #329D9C; text-align: center; margin-bottom: 10px; font-size: 24px;">Welcome to GeoKollect</h1>
         <p style="color: #7a9a8a; text-align: center; margin-bottom: 30px;">Account Verification</p>
         
         <p style="font-size: 16px; color: #1c3a2e; margin-bottom: 20px;">Hello <strong>${name}</strong>,</p>
         
         <p style="font-size: 14px; color: #1c3a2e; line-height: 1.6; margin-bottom: 20px;">
-          Thank you for signing up with GeoWaste Kilifi. Your account has been successfully created and is ready to use.
+          Thank you for signing up with GeoKollect. Your account has been successfully created and is ready to use.
         </p>
         
         <div style="background: white; border: 2px solid #e2ede8; border-radius: 8px; padding: 20px; margin: 30px 0;">
@@ -202,7 +202,7 @@ export class NotificationService {
         </div>
         
         <p style="font-size: 14px; color: #1c3a2e; line-height: 1.6; margin-bottom: 20px;">
-          You can now log in to the GeoWaste Kilifi application using your email and password. Start creating and collecting surveys right away!
+          You can now log in to the GeoKollect application using your email and password. Start creating and collecting surveys right away!
         </p>
         
         <hr style="border: none; border-top: 1px solid #e2ede8; margin: 30px 0;">
@@ -215,8 +215,8 @@ export class NotificationService {
     return this.sendNotification({
       email,
       type: 'email',
-      subject: '✓ GeoWaste Kilifi - Account Verified',
-      message: `Your account has been verified, ${name}. Welcome to GeoWaste Kilifi!`,
+      subject: '✓ GeoKollect - Account Verified',
+      message: `Your account has been verified, ${name}. Welcome to GeoKollect!`,
       htmlContent: html,
       templateName: 'account_verification',
     });
@@ -229,12 +229,12 @@ export class NotificationService {
     const html = `
       <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f6fbf8; border-radius: 12px; padding: 40px;">
         <h1 style="color: #dc2626; text-align: center; margin-bottom: 10px; font-size: 24px;">Account Deleted</h1>
-        <p style="color: #7a9a8a; text-align: center; margin-bottom: 30px;">Your GeoWaste Kilifi Account</p>
+        <p style="color: #7a9a8a; text-align: center; margin-bottom: 30px;">Your GeoKollect Account</p>
         
         <p style="font-size: 16px; color: #1c3a2e; margin-bottom: 20px;">Hello ${name},</p>
         
         <p style="font-size: 14px; color: #1c3a2e; line-height: 1.6; margin-bottom: 20px;">
-          This is to confirm that your GeoWaste Kilifi account associated with <strong>${email}</strong> has been permanently deleted.
+          This is to confirm that your GeoKollect account associated with <strong>${email}</strong> has been permanently deleted.
         </p>
         
         <div style="background: #fee2e2; border: 2px solid #fca5a5; border-radius: 8px; padding: 20px; margin: 30px 0;">
@@ -247,7 +247,7 @@ export class NotificationService {
         
         <hr style="border: none; border-top: 1px solid #e2ede8; margin: 30px 0;">
         <p style="font-size: 11px; color: #7a9a8a; text-align: center; margin: 0;">
-          Thank you for using GeoWaste Kilifi.
+          Thank you for using GeoKollect.
         </p>
       </div>
     `;
@@ -255,8 +255,8 @@ export class NotificationService {
     return this.sendNotification({
       email,
       type: 'email',
-      subject: '✓ GeoWaste Kilifi - Account Deleted',
-      message: `Your GeoWaste Kilifi account has been deleted.`,
+      subject: '✓ GeoKollect - Account Deleted',
+      message: `Your GeoKollect account has been deleted.`,
       htmlContent: html,
       templateName: 'account_deletion',
     });
@@ -286,7 +286,7 @@ export class NotificationService {
         
         <hr style="border: none; border-top: 1px solid #e2ede8; margin: 30px 0;">
         <p style="font-size: 11px; color: #7a9a8a; text-align: center; margin: 0;">
-          GeoWaste Kilifi • Data Collection System
+          GeoKollect • Data Collection System
         </p>
       </div>
     `;
@@ -324,7 +324,7 @@ export class NotificationService {
         
         <hr style="border: none; border-top: 1px solid #e2ede8; margin: 30px 0;">
         <p style="font-size: 11px; color: #7a9a8a; text-align: center; margin: 0;">
-          GeoWaste Kilifi • Data Collection System
+          GeoKollect • Data Collection System
         </p>
       </div>
     `;

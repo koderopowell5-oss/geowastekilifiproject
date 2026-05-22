@@ -145,7 +145,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isAdmin, isOpen = false, onClo
         {/* Footer */}
         <div className="absolute bottom-6 left-6 right-6">
           <p className="text-center text-[10px] text-gray-400 font-medium">
-            GeoWaste Kilifi v1.0
+            GeoKollect v1.0
           </p>
         </div>
       </div>

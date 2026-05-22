@@ -1,5 +1,5 @@
 /**
- * Shared TypeScript Types for GeoWaste Kilifi
+ * Shared TypeScript Types for GeoKollect
  * Used by both frontend and backend
  */
 
@@ -183,6 +183,13 @@ export interface Project {
   name: string;
   description?: string;
   admin_id: string;
+  admin?: {
+    id: string;
+    name: string;
+    email: string;
+    ward?: string;
+    phone?: string;
+  };
   created_at: string;
   updated_at: string;
 }

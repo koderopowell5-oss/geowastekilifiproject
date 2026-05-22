@@ -20,8 +20,8 @@ const DEFAULT_EMAIL = 'test@example.com';
 const notificationTemplates = [
   {
     type: 'account_verification',
-    subject: '✓ GeoWaste Kilifi - Account Verified',
-    message: 'Your account has been verified successfully. You can now log in and start using GeoWaste Kilifi.',
+    subject: '✓ GeoKollect - Account Verified',
+    message: 'Your account has been verified successfully. You can now log in and start using GeoKollect.',
   },
   {
     type: 'survey_reminder',
@@ -51,12 +51,12 @@ const notificationTemplates = [
   {
     type: 'system_notification',
     subject: '📢 App Update Available',
-    message: 'A new version of GeoWaste Kilifi is available. Update now to get new features!',
+    message: 'A new version of GeoKollect is available. Update now to get new features!',
   },
   {
     type: 'general',
     subject: '📨 General Notification',
-    message: 'You have a new notification from GeoWaste Kilifi.',
+    message: 'You have a new notification from GeoKollect.',
   },
 ];
 

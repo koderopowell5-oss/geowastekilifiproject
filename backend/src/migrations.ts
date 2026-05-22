@@ -31,6 +31,16 @@ export async function runMigrations() {
       'migration_002_add_image_url.sql',
       'migration_003_add_features.sql',
       'migration_004_fix_geom_and_quality.sql',
+      'migration_005_add_profile_picture.sql',
+      'migration_006_add_otp_tables.sql',
+      'migration_007_custom_surveys.sql',
+      'migration_008_notification_system.sql',
+      'migration_009_password_reset.sql',
+      'migration_010_multi_tenancy_fixed.sql',
+      'migration_011_admin_accounts.sql',
+      'migration_012_email_verification.sql',
+      'migration_013_add_admin_fields_to_pending_signups.sql',
+      'migration_014_add_project_id_to_surveys_and_survey_submissions.sql',
     ];
 
     for (const file of migrationFiles) {

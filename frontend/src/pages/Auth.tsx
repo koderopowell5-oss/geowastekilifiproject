@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LogIn, AlertCircle, Loader2, UserPlus, ShieldCheck, Eye, EyeOff, Mail, Lock, User, ArrowLeft } from 'lucide-react';
+import { LogIn, AlertCircle, Loader2, ShieldCheck, Eye, EyeOff, Mail, Lock, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { ForgotPasswordPage } from './ForgotPasswordPage';
@@ -424,7 +424,7 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
               </button>
             </div>
 
-            <p className="auth-footer">GeoWaste Kilifi · Enumerators Only</p>
+            <p className="auth-footer">GeoKollect · Enumerators Only</p>
           </main>
         </div>
       </>
@@ -539,7 +539,7 @@ export const Auth: React.FC<AuthProps> = ({ initialPage = 'login' }) => {
               </button>
             </form>
 
-            <p className="auth-footer">GeoWaste Kilifi · Administrators Only</p>
+            <p className="auth-footer">GeoKollect · Administrators Only</p>
           </main>
         </div>
       </>

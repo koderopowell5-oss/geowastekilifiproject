@@ -89,6 +89,15 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   } as ApiResponse);
 });
 
+// Global process error handlers
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
 // Start server
 app.listen(PORT, async () => {
   console.log(`\nBackend server running on http://localhost:${PORT}\n`);
@@ -97,15 +106,14 @@ app.listen(PORT, async () => {
     await initializeDatabase();
     console.log('\nDatabase initialized and ready\n');
 
-    // Skip migrations - already applied via psql
-    // await runMigrations();
+    // Run database migrations automatically on startup
+    await runMigrations();
   } catch (err: any) {
-    console.error('\nDatabase connection failed:', err.message);
-    console.error('The server is running but database operations will fail.');
-    console.error('Please ensure:');
-    console.error('  1. PostgreSQL is installed and running');
-    console.error('  2. Database credentials in .env are correct');
-    console.error('  3. Run: npm run db:init (to create tables)\n');
+    console.error('\n❌ Database migration failed:', err.message);
+    console.error('\nYou can manually create tables and run migrations using psql:');
+    console.error('  psql -U postgres -d geowaste_kilifi -f database/schema.sql');
+    console.error('  psql -U postgres -d geowaste_kilifi -f database/migration_010_multi_tenancy_fixed.sql');
+    console.error('\nThe server is continuing despite the migration error.\n');
   }
 
   console.log('API Endpoints:');
