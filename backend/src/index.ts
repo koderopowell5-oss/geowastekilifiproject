@@ -1,5 +1,7 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import wasteRoutes from './routes';
 import versionRoutes from './versionRoutes';
 import { ApiResponse } from './types';
@@ -8,12 +10,41 @@ import { runMigrations } from './migrations';
 
 require('dotenv').config();
 
+// Security: fail fast when critical secrets are missing
+if (!process.env.JWT_SECRET) {
+  console.error('\n[SECURITY] Missing required environment variable: JWT_SECRET');
+  console.error('Set JWT_SECRET in your environment or .env before starting the server.');
+  process.exit(1);
+}
+
+if (!process.env.ADMIN_PASSWORD) {
+  console.error('\n[SECURITY] Missing required environment variable: ADMIN_PASSWORD');
+  console.error('Set ADMIN_PASSWORD in your environment or .env before starting the server.');
+  process.exit(1);
+}
+
 const app: Express = express();
 const PORT = process.env.PORT || 5000;
 
+app.set('trust proxy', 1);
+
+const globalLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '15', 10) * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '10000', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req: Request) => req.path === '/api/health',
+  message: {
+    success: false,
+    message: 'Too many requests, please try again later.',
+  },
+});
+
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(helmet());
+app.use(globalLimiter);
+app.use(express.json({ limit: process.env.REQUEST_BODY_LIMIT || '100kb' }));
+app.use(express.urlencoded({ extended: true, limit: process.env.REQUEST_BODY_LIMIT || '100kb' }));
 
 // CORS configuration
 const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3001';
@@ -113,7 +144,8 @@ app.listen(PORT, async () => {
     console.error('\nYou can manually create tables and run migrations using psql:');
     console.error('  psql -U postgres -d geowaste_kilifi -f database/schema.sql');
     console.error('  psql -U postgres -d geowaste_kilifi -f database/migration_010_multi_tenancy_fixed.sql');
-    console.error('\nThe server is continuing despite the migration error.\n');
+    console.error('\nStopping startup because database schema is inconsistent.\n');
+    process.exit(1);
   }
 
   console.log('API Endpoints:');

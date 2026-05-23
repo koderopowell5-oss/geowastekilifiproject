@@ -228,35 +228,29 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <h2 className="dash-section-title">Quick Actions</h2>
             </div>
             
-            <div className="quick-actions-grid">
+            <div className="quick-actions-row">
               {!isAdmin ? (
                 <>
-                  <button className="quick-action-btn primary" onClick={onStartSurvey}>
-                    <PlusCircle size={20} />
-                    <span>New Record</span>
+                  <button className="quick-action-icon" title="New Record" onClick={onStartSurvey}>
+                    <PlusCircle size={18} />
                   </button>
-                  <button className="quick-action-btn" onClick={handleManualSync} disabled={isSyncing}>
-                    <RefreshCw size={20} className={isSyncing ? 'spin' : ''} />
-                    <span>{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
+                  <button className="quick-action-icon" title={isSyncing ? 'Syncing...' : 'Sync Data'} onClick={handleManualSync} disabled={isSyncing}>
+                    <RefreshCw size={18} className={isSyncing ? 'spin' : ''} />
                   </button>
-                  <button className="quick-action-btn" onClick={onViewMap}>
-                    <Navigation size={20} />
-                    <span>View Map</span>
+                  <button className="quick-action-icon" title="View Map" onClick={onViewMap}>
+                    <Navigation size={18} />
                   </button>
                 </>
               ) : (
                 <>
-                  <button className="quick-action-btn primary" onClick={onViewAdmin}>
-                    <BarChart3 size={20} />
-                    <span>Analytics</span>
+                  <button className="quick-action-icon" title="Analytics" onClick={onViewAdmin}>
+                    <BarChart3 size={18} />
                   </button>
-                  <button className="quick-action-btn" onClick={onViewMap}>
-                    <MapPin size={20} />
-                    <span>Live Map</span>
+                  <button className="quick-action-icon" title="Live Map" onClick={onViewMap}>
+                    <MapPin size={18} />
                   </button>
-                  <button className="quick-action-btn" onClick={onSettings}>
-                    <Settings size={20} />
-                    <span>Settings</span>
+                  <button className="quick-action-icon" title="Settings" onClick={onSettings}>
+                    <Settings size={18} />
                   </button>
                 </>
               )}
@@ -282,7 +276,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   const loc = record.ward || record.response_data?.ward || 'Kilifi';
 
                   return (
-                    <div key={record.id || index} className="activity-item">
+                      <div
+                        key={record.id || index}
+                        className="activity-item"
+                        onClick={() => {
+                          const target = record.id ? `/collections/${record.id}` : '/collections';
+                          window.location.href = target;
+                        }}
+                      >
                       <div className="activity-icon">
                         <MapPin size={14} />
                       </div>
@@ -501,34 +502,20 @@ const css = `
 
   /* ── Quick Actions Grid ── */
   .quick-actions-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
+    display: flex; align-items: center; gap: 12px;
   }
-  .quick-action-btn {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 10px; padding: 20px 12px;
-    background: transparent; border: 1px solid var(--border);
-    border-radius: var(--r); color: var(--teal-d);
-    font-size: 13px; font-weight: 600; font-family: inherit;
-    cursor: pointer; transition: all 0.2s;
+  .quick-action-icon {
+    width: 44px; height: 44px; border-radius: 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: white; border: 1px solid var(--border); color: var(--teal-d);
+    cursor: pointer; transition: all 0.14s; box-shadow: 0 1px 0 rgba(0,0,0,0.02);
   }
-  .quick-action-btn:hover:not(:disabled) {
-    background: white; border-color: var(--teal); color: var(--teal);
-  }
-  .quick-action-btn.primary {
-    background: var(--teal); border-color: var(--teal); color: white;
-  }
-  .quick-action-btn.primary:hover:not(:disabled) {
-    background: var(--teal-d); border-color: var(--teal-d);
-  }
-  .quick-action-btn:disabled {
-    opacity: 0.6; cursor: not-allowed;
-  }
+  .quick-action-icon:hover { transform: translateY(-2px); border-color: var(--teal); color: var(--teal); }
+  .quick-action-icon:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
   
   @media (max-width: 480px) {
-    .quick-actions-grid { grid-template-columns: 1fr; }
-    .quick-action-btn { flex-direction: row; justify-content: flex-start; padding: 16px 20px; }
+    .quick-actions-grid { flex-direction: row; }
+    .quick-action-icon { width: 40px; height: 40px; }
   }
 
   /* ── Recent Activity List ── */
@@ -539,6 +526,7 @@ const css = `
   .activity-item {
     display: flex; align-items: center; gap: 14px;
     padding: 16px 0; border-bottom: 1px solid var(--border);
+    cursor: pointer;
   }
   .activity-icon {
     display: flex; align-items: center; justify-content: center;

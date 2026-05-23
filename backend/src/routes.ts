@@ -11,11 +11,49 @@ import { notificationService } from './notificationService';
 import { SurveyService, SurveyFormConfig } from './surveyService';
 import { ProjectService } from './projectService';
 import { ApiResponse, WasteSiteRecord, RecordComment, EnumeratorAssignment } from './types';
+import rateLimit from 'express-rate-limit';
 import { authMiddleware, requireAdmin, requireSupervisor, isAdminUser, AuthRequest } from './middleware';
+import { signJwt } from './jwt';
 import { pool } from './db';
+import fs from 'fs';
+import path from 'path';
 
 const router = Router();
 const SKIP_EMAIL_VERIFICATION = (process.env.SKIP_EMAIL_VERIFICATION || 'false') === 'true';
+
+function createAuthToken(payload: { id?: number; email: string; role: string; name: string; account_type?: string; permissions?: Record<string, boolean> }) {
+  return signJwt({
+    sub: payload.email,
+    id: payload.id,
+    email: payload.email,
+    role: payload.role,
+    name: payload.name,
+    account_type: payload.account_type as any,
+    permissions: payload.permissions || {},
+  });
+}
+
+const authLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_AUTH_WINDOW_MS || '15', 10) * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_AUTH_MAX || '15', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many auth requests from this IP, please try again later.',
+  },
+});
+
+const otpLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_OTP_WINDOW_MS || '15', 10) * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_OTP_MAX || '10', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many OTP requests from this IP, please try again later.',
+  },
+});
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage(); // Store files in memory
@@ -52,7 +90,7 @@ router.post('/auth/signup', async (req: Request, res: Response) => {
  * POST /api/auth/login
  * Authenticate an enumerator
  */
-router.post('/auth/login', async (req: Request, res: Response) => {
+router.post('/auth/login', authLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
@@ -66,9 +104,13 @@ router.post('/auth/login', async (req: Request, res: Response) => {
     }
 
     const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'kodero_admin';
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '*Powell123!';
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD; // Must be set in environment
 
     if (email === ADMIN_USERNAME) {
+      if (!ADMIN_PASSWORD) {
+        console.error('[SECURITY] ADMIN_PASSWORD is not configured');
+        return res.status(500).json({ success: false, message: 'Server not configured: ADMIN_PASSWORD missing' } as ApiResponse);
+      }
       if (password !== ADMIN_PASSWORD) {
         throw new Error('Invalid email or password');
       }
@@ -85,7 +127,13 @@ router.post('/auth/login', async (req: Request, res: Response) => {
         primary_project_id: null,
       };
 
-      const token = `${ADMIN_USERNAME}:${Date.now()}`;
+      const token = createAuthToken({
+        id: adminUser.id,
+        email: ADMIN_USERNAME,
+        role: 'admin',
+        name: adminUser.name,
+        account_type: 'admin',
+      });
 
       return res.status(200).json({
         success: true,
@@ -101,8 +149,13 @@ router.post('/auth/login', async (req: Request, res: Response) => {
 
     const enumerator = await AuthService.authenticateEnumerator(email, password);
 
-    // Generate token: email:timestamp format
-    const token = `${email}:${Date.now()}`;
+    const token = createAuthToken({
+      id: enumerator.id,
+      email: enumerator.email,
+      role: enumerator.role || 'enumerator',
+      name: enumerator.name,
+      account_type: enumerator.account_type || 'enumerator',
+    });
 
     // Get user's projects (multi-tenancy support)
     const projects = await ProjectService.getEnumeratorProjects(enumerator.id);
@@ -136,8 +189,9 @@ router.post('/auth/login', async (req: Request, res: Response) => {
 /**
  * GET /api/auth/enumerators
  * Get all enumerators
+ * Admin-only endpoint
  */
-router.get('/auth/enumerators', async (req: Request, res: Response) => {
+router.get('/auth/enumerators', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
   try {
     const enumerators = await AuthService.getAllEnumerators();
 
@@ -200,7 +254,7 @@ router.delete('/auth/enumerators/:id', authMiddleware, requireAdmin, async (req:
  * Admin-only registration (creates PENDING admin account - NOT in DB yet)
  * Account is only created after email verification
  */
-router.post('/auth/register', async (req: Request, res: Response) => {
+router.post('/auth/register', authLimiter, async (req: Request, res: Response) => {
   const startTime = Date.now();
   try {
     const { email, password, name, ward, phone, projectName } = req.body;
@@ -281,7 +335,13 @@ router.post('/auth/register', async (req: Request, res: Response) => {
       }
 
       const projects = await ProjectService.getEnumeratorProjects(admin.id);
-      const token = `${email}:${Date.now()}`;
+      const token = createAuthToken({
+        id: admin.id,
+        email: admin.email,
+        role: 'admin',
+        name: admin.name,
+        account_type: 'admin',
+      });
 
       return res.status(201).json({
         success: true,
@@ -337,7 +397,7 @@ router.post('/auth/register', async (req: Request, res: Response) => {
  * POST /api/auth/verify-email
  * Verify OTP and CREATE admin account (account only created after verification)
  */
-router.post('/auth/verify-email', async (req: Request, res: Response) => {
+router.post('/auth/verify-email', otpLimiter, async (req: Request, res: Response) => {
   const startTime = Date.now();
   try {
     const { email, verificationCode } = req.body;
@@ -360,7 +420,13 @@ router.post('/auth/verify-email', async (req: Request, res: Response) => {
 
       if (existingAdmin.rows.length > 0) {
         const admin = existingAdmin.rows[0];
-        const token = `${email}:${Date.now()}`;
+        const token = createAuthToken({
+          id: admin.id,
+          email: admin.email,
+          role: admin.role || 'admin',
+          name: admin.name,
+          account_type: admin.account_type || 'admin',
+        });
         const projects = await ProjectService.getEnumeratorProjects(admin.id);
 
         return res.status(200).json({
@@ -485,7 +551,13 @@ router.post('/auth/verify-email', async (req: Request, res: Response) => {
       });
 
     // Generate token
-    const token = `${email}:${Date.now()}`;
+    const token = createAuthToken({
+      id: admin.id,
+      email: admin.email,
+      role: 'admin',
+      name: admin.name,
+      account_type: 'admin',
+    });
 
     // Get projects (should include the newly created one)
     const projects = await ProjectService.getEnumeratorProjects(admin.id);
@@ -523,7 +595,39 @@ router.post('/auth/verify-email', async (req: Request, res: Response) => {
  * POST /api/auth/otp/verify
  * Verify OTP and complete registration
  */
-router.post('/auth/otp/verify', async (req: Request, res: Response) => {
+/**
+ * POST /api/auth/otp/request
+ * Start OTP-based registration: save pending signup and send OTP
+ */
+router.post('/auth/otp/request', otpLimiter, async (req: Request, res: Response) => {
+  try {
+    const { name, email, password, ward, phone } = req.body;
+
+    if (!name || !email || !password || !ward || !phone) {
+      return res.status(400).json({ success: false, message: 'Missing required fields', error: 'name, email, password, ward and phone are required' } as ApiResponse);
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, message: 'Invalid email format' } as ApiResponse);
+    }
+
+    // Hash the password before saving pending signup
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Save pending signup (store hashed password)
+    await otpService.savePendingSignup({ email, password: hashedPassword, name, ward, phone, account_type: 'enumerator' });
+
+    // Generate and send OTP
+    await otpService.generateAndSendOTP(email);
+
+    return res.status(201).json({ success: true, message: 'OTP sent to email', data: { email, name } } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error requesting OTP:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to request OTP', error: error.message } as ApiResponse);
+  }
+});
+
+router.post('/auth/otp/verify', otpLimiter, async (req: Request, res: Response) => {
   try {
     const { email, otp } = req.body;
 
@@ -593,10 +697,20 @@ router.post('/auth/otp/verify', async (req: Request, res: Response) => {
     // Get projects for response
     const projects = await ProjectService.getEnumeratorProjects(enumerator.id);
 
+    // Provide a secure JWT for client sessions
+    const token = createAuthToken({
+      id: enumerator.id,
+      email: enumerator.email,
+      role: enumerator.role || 'enumerator',
+      name: enumerator.name,
+      account_type: enumerator.account_type || 'enumerator',
+    });
+
     return res.status(201).json({
       success: true,
       message: 'Email verified and account created successfully',
       data: {
+        token,
         user: enumerator,
         projects,
         current_project_id: assignedProjectId || (projects.length > 0 ? projects[0].project.id : null),
@@ -616,7 +730,7 @@ router.post('/auth/otp/verify', async (req: Request, res: Response) => {
  * POST /api/auth/otp/resend
  * Resend OTP code
  */
-router.post('/auth/otp/resend', async (req: Request, res: Response) => {
+router.post('/auth/otp/resend', otpLimiter, async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
 
@@ -646,11 +760,81 @@ router.post('/auth/otp/resend', async (req: Request, res: Response) => {
   }
 });
 
+// Simple settings persistence (file-backed) for general app settings
+const SETTINGS_DIR = path.join(__dirname, '..', 'data');
+const GENERAL_SETTINGS_FILE = path.join(SETTINGS_DIR, 'general_settings.json');
+
+router.get('/settings/general', async (req: Request, res: Response) => {
+  try {
+    if (!fs.existsSync(SETTINGS_DIR)) fs.mkdirSync(SETTINGS_DIR, { recursive: true });
+    if (!fs.existsSync(GENERAL_SETTINGS_FILE)) {
+      fs.writeFileSync(GENERAL_SETTINGS_FILE, JSON.stringify({}));
+    }
+    const raw = fs.readFileSync(GENERAL_SETTINGS_FILE, 'utf8');
+    const data = raw ? JSON.parse(raw) : {};
+    return res.status(200).json({ success: true, message: 'Settings loaded', data } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error loading settings:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load settings', error: error.message } as ApiResponse);
+  }
+});
+
+router.post('/settings/general', async (req: Request, res: Response) => {
+  try {
+    const settings = req.body || {};
+    if (!fs.existsSync(SETTINGS_DIR)) fs.mkdirSync(SETTINGS_DIR, { recursive: true });
+    fs.writeFileSync(GENERAL_SETTINGS_FILE, JSON.stringify(settings, null, 2));
+    return res.status(200).json({ success: true, message: 'Settings saved', data: settings } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error saving settings:', error);
+    return res.status(500).json({ success: false, message: 'Failed to save settings', error: error.message } as ApiResponse);
+  }
+});
+
+/**
+ * POST /api/debug/email-test
+ * Security: admin-only. Triggers a test email via the existing EmailService.
+ */
+router.post('/debug/email-test', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { to, subject, html } = req.body;
+
+    if (!to) {
+      return res.status(400).json({ success: false, message: 'Recipient "to" is required' } as ApiResponse);
+    }
+
+    // Basic sanitization: single recipient only, validate email format, no CRLF sequences
+    const recipient = (to || '').toString().trim();
+    if (recipient.includes('\n') || recipient.includes('\r')) {
+      return res.status(400).json({ success: false, message: 'Invalid recipient format' } as ApiResponse);
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(recipient)) {
+      return res.status(400).json({ success: false, message: 'Invalid recipient email address' } as ApiResponse);
+    }
+
+    const sent = await emailService.sendNotification(
+      recipient,
+      subject || 'GeoKollect Debug Email',
+      html || '<p>This is a debug test email from GeoKollect.</p>'
+    );
+
+    if (!sent) {
+      return res.status(500).json({ success: false, message: 'Failed to send test email. Check SMTP settings.' } as ApiResponse);
+    }
+
+    return res.status(200).json({ success: true, message: 'Test email sent', data: { to } } as ApiResponse);
+  } catch (error: any) {
+    console.error('Debug email test failed:', error?.message || error);
+    return res.status(500).json({ success: false, message: 'Debug email failed', error: error?.message } as ApiResponse);
+  }
+});
+
 /**
  * POST /api/auth/forgot-password
  * Request password reset
  */
-router.post('/auth/forgot-password', async (req: Request, res: Response) => {
+router.post('/auth/forgot-password', authLimiter, async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
 
@@ -852,7 +1036,7 @@ router.get('/profile', authMiddleware, async (req: AuthRequest, res: Response) =
  * POST /api/waste
  * Create a new waste site record
  */
-router.post('/waste', async (req: Request, res: Response) => {
+router.post('/waste', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const data = req.body;
 
@@ -871,11 +1055,15 @@ router.post('/waste', async (req: Request, res: Response) => {
       } as ApiResponse);
     }
 
-    // Pass enumerator_email if provided
-    const recordData = {
-      ...data,
-      enumerator_email: data.enumerator_email || null,
-    };
+    // Attach enumerator email server-side. Admins may provide enumerator_email; enumerators are restricted to their own email.
+    const isAdmin = isAdminUser(req.user);
+    const recordData: any = { ...data };
+    if (!isAdmin) {
+      // Force enumerator identity from JWT for non-admins
+      recordData.enumerator_email = req.user?.email || null;
+    } else {
+      recordData.enumerator_email = data.enumerator_email || null;
+    }
 
     const record = await WasteService.createWasteSite(recordData);
 
@@ -2942,7 +3130,7 @@ router.post('/admin/enumerators', authMiddleware, async (req: Request, res: Resp
  * GET /api/admin/enumerators
  * Admin lists all enumerators they've created
  */
-router.get('/admin/enumerators', authMiddleware, async (req: Request, res: Response) => {
+router.get('/admin/enumerators', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
   try {
     const authReq = req as AuthRequest;
 
@@ -2982,7 +3170,7 @@ router.get('/admin/enumerators', authMiddleware, async (req: Request, res: Respo
  * PUT /api/admin/enumerators/:id/reset-password
  * Admin resets an enumerator's password
  */
-router.put('/admin/enumerators/:id/reset-password', authMiddleware, async (req: Request, res: Response) => {
+router.put('/admin/enumerators/:id/reset-password', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { new_password } = req.body;
@@ -3116,7 +3304,7 @@ router.delete('/admin/enumerators/:id', authMiddleware, requireAdmin, async (req
  * POST /api/admin/projects/:project_id/assign-enumerator
  * Admin assigns an enumerator to a project with a role
  */
-router.post('/admin/projects/:project_id/assign-enumerator', authMiddleware, async (req: Request, res: Response) => {
+router.post('/admin/projects/:project_id/assign-enumerator', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { project_id } = req.params;
     const { enumerator_id, role_id } = req.body;

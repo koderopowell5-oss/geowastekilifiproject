@@ -117,11 +117,24 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onBackToLogin }) => {
       }
 
       const result = await response.json();
-      localStorage.setItem('token', result.data.id.toString());
-      localStorage.setItem('user', JSON.stringify(result.data));
-      
+
+      // Persist session in the same keys AuthContext expects
+      if (result.data?.token) {
+        localStorage.setItem('token', result.data.token);
+      }
+      if (result.data?.user) {
+        localStorage.setItem('auth_user', JSON.stringify(result.data.user));
+      }
+      if (result.data?.projects) {
+        localStorage.setItem('auth_user_projects', JSON.stringify(result.data.projects));
+      }
+      if (result.data?.current_project_id) {
+        localStorage.setItem('auth_current_project_id', result.data.current_project_id.toString());
+      }
+      localStorage.setItem('auth_session_timestamp', Date.now().toString());
+
       showSuccess('Account created successfully!');
-      // Reload to trigger login
+      // Redirect to dashboard
       window.location.href = '/dashboard';
     } catch (err: any) {
       setError(err.message || 'OTP verification failed');

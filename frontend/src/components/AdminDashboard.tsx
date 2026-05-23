@@ -574,13 +574,29 @@ export const AdminDashboard: React.FC = () => {
       try {
         if (!currentProjectId) {
           setError('No project selected. Please select a project from the project switcher.');
-          setRecords([]); return;
+          setRecords([]);
+          // keep loading state handling below
+          return;
         }
 
         const forms = await wasteApiService.getSharedForms(currentProjectId);
+
+        // If there are no shared forms, do not block access -- show empty dashboard
         if (!forms || forms.length === 0) {
-          setError('No forms shared with this project yet. Create and share a form to see data.');
-          setRecords([]); return;
+          setFieldSchemas([]);
+          setRecords([]);
+          setSharedFormCount(0);
+          setUniqueEnumerators(0);
+          setAvgAnsweredFields('0');
+          setFormSubmissionCounts([]);
+          setTopFields([]);
+          setTopFieldName('');
+          setTopFieldDistribution([]);
+          setEnumeratorActivity([]);
+          setTrendField(undefined);
+          setTrendSeries([]);
+          // Allow UI to render empty panels instead of an error
+          return;
         }
 
         const catalog = buildFieldCatalog(forms);
@@ -591,9 +607,20 @@ export const AdminDashboard: React.FC = () => {
         );
         const mergedSubmissions = submissionsByForm.flat().filter((s: any) => String(s.project_id) === String(currentProjectId));
 
-        if (mergedSubmissions.length === 0) {
-          setError('No survey submissions found for this project.');
-          setRecords([]); return;
+        // If there are no submissions, show empty dashboard rather than an error
+        if (!mergedSubmissions || mergedSubmissions.length === 0) {
+          setRecords([]);
+          setSharedFormCount(forms.length);
+          setUniqueEnumerators(0);
+          setAvgAnsweredFields('0');
+          setFormSubmissionCounts([]);
+          setTopFields([]);
+          setTopFieldName('');
+          setTopFieldDistribution([]);
+          setEnumeratorActivity([]);
+          setTrendField(undefined);
+          setTrendSeries([]);
+          return;
         }
 
         const mappedRecords: SubmissionRow[] = mergedSubmissions.map((s: any) => ({
