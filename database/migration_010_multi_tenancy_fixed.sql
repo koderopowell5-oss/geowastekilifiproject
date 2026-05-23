@@ -131,4 +131,3 @@ COMMENT ON TABLE project_invites IS 'Invitation codes for adding enumerators to 
 COMMENT ON COLUMN enumerators.primary_project_id IS 'Default/active project for this enumerator';
 COMMENT ON COLUMN surveys.project_id IS 'Project this survey/form belongs to';
 COMMENT ON COLUMN waste_sites.project_id IS 'Project this waste site belongs to';
-COMMENT ON COLUMN submissions.project_id IS 'Project this submission belongs to';
