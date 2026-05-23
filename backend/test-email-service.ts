@@ -29,8 +29,14 @@ console.log(`✓ GMAIL_APP_PASSWORD: [set - length: ${GMAIL_APP_PASSWORD.length}
 
 // Test transporter
 console.log('\n2️⃣  Creating nodemailer transporter...');
+const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+const smtpPort = parseInt(process.env.SMTP_PORT || '465', 10);
+const smtpSecure = (process.env.SMTP_SECURE || 'true') === 'true';
+
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: smtpHost,
+  port: smtpPort,
+  secure: smtpSecure,
   auth: {
     user: GMAIL_USER,
     pass: GMAIL_APP_PASSWORD,
@@ -38,6 +44,8 @@ const transporter = nodemailer.createTransport({
   tls: {
     rejectUnauthorized: false,
   },
+  // require TLS when using port 587 and secure=false
+  ...(smtpPort === 587 && !smtpSecure ? { requireTLS: true } : {}),
 });
 console.log('✓ Transporter created');
 

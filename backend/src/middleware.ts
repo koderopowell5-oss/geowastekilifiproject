@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { pool } from './db';
 import { ApiResponse } from './types';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret';
 
 export interface AuthRequest extends Request {
   params: any;
@@ -15,7 +18,7 @@ export interface AuthRequest extends Request {
     role: string;
     account_type?: 'admin' | 'enumerator';
     permissions?: Record<string, boolean>;
-    primary_project_id?: string;
+    primary_project_id?: string | null;
   };
 }
 export function isAdminUser(user?: { role?: string; account_type?: string } | null): boolean {
@@ -36,20 +39,26 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
 
     const token = authHeader.substring(7);
 
-    // For now, use simple email/username-based token (in production, use JWT)
-    // Token format: email:timestamp or username:timestamp (decoded in frontend)
-    const [identifier] = token.split(':');
-
-    if (!identifier) {
+    let payload: any;
+    try {
+      payload = jwt.verify(token, JWT_SECRET);
+    } catch (jwtError: any) {
+      console.error('JWT verification failed:', jwtError.message);
       return res.status(401).json({
         success: false,
-        message: 'Invalid token format',
+        message: 'Invalid or expired authorization token',
       } as ApiResponse);
     }
 
-    // Check if this is admin
+    if (!payload || !payload.email) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid authorization token payload',
+      } as ApiResponse);
+    }
+
     const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'kodero_admin';
-    if (identifier === ADMIN_USERNAME) {
+    if (payload.sub === ADMIN_USERNAME || payload.email === ADMIN_USERNAME) {
       req.user = {
         id: 0,
         email: 'admin@geowaste.local',
@@ -65,7 +74,7 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     // Fetch user with permissions from database
     const result = await pool.query(
       'SELECT id, email, name, role, account_type, permissions, primary_project_id FROM enumerators WHERE email = $1',
-      [identifier]
+      [payload.email]
     );
 
     if (result.rows.length === 0) {

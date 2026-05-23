@@ -7,19 +7,20 @@ import nodemailer from 'nodemailer';
 
 export class EmailService {
   private transporter: nodemailer.Transporter;
+  private transportOptions: any;
   private isConfigured: boolean;
 
   constructor() {
-    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const smtpHost = process.env.SMTP_HOST;
     const smtpPort = parseInt(process.env.SMTP_PORT || '465', 10);
     const smtpSecure = (process.env.SMTP_SECURE || 'true') === 'true';
+    const useGmailService = (process.env.SMTP_SERVICE || '').toLowerCase() === 'gmail';
 
     const smtpUser =
       process.env.SMTP_USER ||
       process.env.GMAIL_USER ||
       '';
 
-    // remove accidental spaces from Gmail app password
     const smtpPass = (
       process.env.SMTP_PASS ||
       process.env.GMAIL_APP_PASSWORD ||
@@ -35,21 +36,13 @@ export class EmailService {
     }
 
     const transportOptions: any = {
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure,
-
       auth: {
         user: smtpUser,
         pass: smtpPass,
       },
-
-      // pooled connections improve cloud reliability
       pool: true,
       maxConnections: 3,
       maxMessages: 100,
-
-      // timeouts
       connectionTimeout: parseInt(
         process.env.EMAIL_CONNECTION_TIMEOUT_MS || '30000',
         10
@@ -64,11 +57,20 @@ export class EmailService {
       ),
     };
 
-    // required for STARTTLS on port 587
-    if (!smtpSecure && smtpPort === 587) {
-      (transportOptions as any).requireTLS = true;
+    if (smtpHost) {
+      transportOptions.host = smtpHost;
+      transportOptions.port = smtpPort;
+      transportOptions.secure = smtpSecure;
+      if (!smtpSecure && smtpPort === 587) {
+        transportOptions.requireTLS = true;
+      }
+    } else if (useGmailService || process.env.GMAIL_USER) {
+      transportOptions.service = 'gmail';
+      // Gmail service with app password or SMTP credentials
+      transportOptions.secure = smtpSecure;
     }
 
+    this.transportOptions = transportOptions;
     this.transporter = nodemailer.createTransport(transportOptions);
 
     console.log('[EMAIL] SMTP transporter created');
@@ -106,9 +108,17 @@ export class EmailService {
     html: string
   ): Promise<boolean> {
     if (!this.isConfigured) {
-      console.warn(
-        `[EMAIL] Cannot send email to ${to}: SMTP not configured`
-      );
+      const allowConsole = (process.env.EMAIL_ALLOW_CONSOLE_DELIVER || 'true') === 'true';
+      console.warn(`[EMAIL] SMTP not configured. allowConsoleDeliver=${allowConsole}`);
+      if (allowConsole) {
+        console.log('[EMAIL] --- Console deliver ---');
+        console.log('To:', to);
+        console.log('Subject:', subject);
+        console.log('HTML:', html);
+        console.log('[EMAIL] --- End console deliver ---');
+        return true;
+      }
+
       return false;
     }
 
@@ -176,6 +186,36 @@ export class EmailService {
 
         const isTransient =
           error?.code && transientCodes.has(error.code);
+
+        if (isTransient && attempt === 1 && this.transportOptions?.host && this.transportOptions?.port === 465) {
+          console.log('[EMAIL] Primary SMTP port 465 failed; trying fallback port 587 with STARTTLS');
+          const fallbackOptions = {
+            ...this.transportOptions,
+            port: 587,
+            secure: false,
+            requireTLS: true,
+          };
+          const fallbackTransporter = nodemailer.createTransport(fallbackOptions);
+          try {
+            await fallbackTransporter.verify();
+            const info = await fallbackTransporter.sendMail({
+              from:
+                process.env.SMTP_FROM ||
+                `"GeoKollect" <${process.env.SMTP_USER}>`,
+              to,
+              subject,
+              html,
+            });
+            console.log(`[EMAIL] ✓ Fallback sent successfully (${Date.now() - emailStart}ms)`);
+            console.log('[EMAIL] Message ID:', info.messageId);
+            return true;
+          } catch (fallbackError: any) {
+            console.error('[EMAIL] Fallback SMTP send failed:', {
+              code: fallbackError?.code,
+              message: fallbackError?.message,
+            });
+          }
+        }
 
         const shouldRetry =
           attempt <= maxRetries && isTransient;
